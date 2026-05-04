@@ -1,4 +1,4 @@
-# aer - automated explicit refinement
+# aert - automated explicit refinement types
 There are three advantages to having explicit refinement types with automation:
  * Allows user input and help to get to decidable theories.
  * Eliminates solvers and other algorithms (like liquid typing) from the trusted code base.
