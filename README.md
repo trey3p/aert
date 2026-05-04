@@ -45,6 +45,14 @@ a ≤ b - cols
 
 The user provided a lemma that related ```i * cols``` and ```row * cols``` and then abstracted these out, giving a new equisatisfiable formula in Presburger.
 
+The general recipe is something like:
+
+
+1. Identify the nonlinear subterms
+2. Ask the user to prove linear relationships between them
+3. Abstract the nonlinear subterms into fresh variables
+4. Hand the linear relationships plus the abstracted goal to omega
+
 ## GitHub configuration
 
 To set up your new GitHub repository, follow these steps:
