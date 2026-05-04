@@ -40,7 +40,8 @@ given
 ```
 rows > 0 ∧ cols > 0 ∧ i < rows ∧ j < cols
 a ≤ b - cols
-```.
+```
+.
 
 The user provided a lemma that related ```i * cols``` and ```row * cols``` and then abstracted these out, giving a new equisatisfiable formula in Presburger.
 
