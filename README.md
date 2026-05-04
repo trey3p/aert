@@ -1,4 +1,48 @@
-# ambifine
+# aer - automated explicit refinement
+There are three advantages to having explicit refinement types with automation:
+ * Allows user input and help to get to decidable theories.
+ * Eliminates solvers and other algorithms (like liquid typing) from the trusted code base.
+ * When used with solvers that produce proofs, explicit refinement types eliminate expensive runtime checks by running automation once and storing the generated proof for later.
+
+## Theories that aer can handle
+  * Reducing to EPR Class : given a formula ∀ ∃ ∀ the user can provide existential witnesses to get the theory within EPR (∃ ∀ ).
+  * Presburger + Nonlinear Arithmetic: Given a formula in Nonlinear arithmetic, the user can provide explicit proofs that reduce the formula to presburger arithmetic at which point automation can discharge the rest of the goal.
+
+Example for Presburger:
+
+vector is an example
+
+
+Example for Nonlinear Arithmetic:
+
+```
+flatIndex : (rows : {r : Nat | r > 0}) 
+          → (cols : {c : Nat | c > 0})
+          → (i : {x : Nat | x < rows}) 
+          → (j : {x : Nat | x < cols})
+          → {k : Nat | k < rows * cols}
+flatIndex rows cols i j = i * cols + j
+```
+
+```flatIndex``` takes converts an index ```(i, j)``` for a 2D array of size ```row x cols``` into an index ```k``` for a flat array that stores the 2D grid in row-major order. The refinement on ```k``` ensures that ```k``` is within bounds.
+
+The typechecker cannot solve this on its own since it requires verifying:
+``` rows > 0 ∧ cols > 0 ∧ i < rows ∧ j < cols ⇒ i * cols + j < rows * cols```
+We cannot call out to a solver for this since this formula sits in nonlinear arithmetic.
+
+However, given a proof of:
+``` rows > 0 ∧ cols > 0 ∧ i < rows ∧ j < cols ⇒ i * cols ≤ rows * cols - cols ```
+
+Let ``` a = i * cols ``` and ```b = row * cols```.
+The condition the typechecker needs to solve is
+```a + j < b```
+given 
+```
+rows > 0 ∧ cols > 0 ∧ i < rows ∧ j < cols
+a ≤ b - cols
+```.
+
+The user provided a lemma that related ```i * cols``` and ```row * cols``` and then abstracted these out, giving a new equisatisfiable formula in Presburger.
 
 ## GitHub configuration
 
