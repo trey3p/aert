@@ -6,24 +6,54 @@ inductive Annot where
   | sort : AnnotSort → Annot
   | expr : AnnotSort → Term → Annot
 
-def Context.nth : Context → Nat → Option Hyp
+-- Shift all free variables with index ≥ cutoff up by shift.
+-- The binding depth encoded in each TermKind index determines how much
+-- the cutoff grows as we descend into each argument.
+def Term.lift (cutoff shift : Nat) : Term → Term
+  | .var v             => .var (if v < cutoff then v else v + shift)
+  | .const c           => .const c
+  | .unary k t         => .unary k (t.lift cutoff shift)
+  | .bin k l r         => .bin k (l.lift cutoff shift) (r.lift cutoff shift)
+  | .abs k A t         => .abs k (A.lift cutoff shift) (t.lift (cutoff + 1) shift)
+  | .tri k A l r       => .tri k (A.lift cutoff shift) (l.lift cutoff shift)
+                                  (r.lift cutoff shift)
+  | .ir k x y P        => .ir k (x.lift cutoff shift) (y.lift cutoff shift)
+                                  (P.lift (cutoff + 1) shift)
+  | .cases k K d l r   => .cases k (K.lift cutoff shift) (d.lift cutoff shift)
+                                    (l.lift (cutoff + 1) shift)
+                                    (r.lift (cutoff + 1) shift)
+  | .let_bin k P e e'  => .let_bin k (P.lift cutoff shift) (e.lift cutoff shift)
+                                      (e'.lift (cutoff + 2) shift)
+  | .let_bin_beta k P l r e' =>
+      .let_bin_beta k (P.lift cutoff shift) (l.lift cutoff shift)
+                      (r.lift cutoff shift) (e'.lift (cutoff + 2) shift)
+  | .nr k K e z s      => .nr k (K.lift (cutoff + 1) shift) (e.lift cutoff shift)
+                                 (z.lift cutoff shift) (s.lift (cutoff + 2) shift)
+  | .nz k K z s        => .nz k (K.lift (cutoff + 1) shift) (z.lift cutoff shift)
+                                  (s.lift (cutoff + 2) shift)
+
+def Term.wk1 (t : Term) : Term := t.lift 0 1
+def Term.wkn (n : Nat) (t : Term) : Term := t.lift 0 n
+
+-- Computable analogue of HasVar: walk the context, applying wk1 at each step
+-- so the returned type is valid in the full context (not just the tail).
+def lookupVar : Context → Nat → Option (HypKind × Term)
   | [],     _     => none
-  | h :: _, 0     => some h
-  | _ :: Γ, n + 1 => Context.nth Γ n
+  | h :: _, 0     => some (h.kind, h.ty.wk1)
+  | _ :: Γ, n + 1 => lookupVar Γ n |>.map (fun (k, A) => (k, A.wk1))
 
 -- inferType mirrors HasType as a decision procedure.
 -- Limitations vs the full HasType relation:
---   - Variable types are returned without weakening (needs wkn).
 --   - Cases whose result type requires substitution (app, eliminations,
 --     natrec, equality terms) return none until subst is implemented.
 --   - Context upgrade (Γ.upgrade) for ghost/irrelevance is not applied.
 def inferType (Γ : Context) (e : Term) : Option Annot :=
   match e with
 
-  -- Variables: look up in context; ghost bindings are not directly usable
+  -- Variables: ghost bindings are not directly usable as values
   | Term.var n =>
-    match Γ.nth n with
-    | some ⟨A, HypKind.val s⟩ => some (.expr s A)  -- note: should be A.wkn(n+1)
+    match lookupVar Γ n with
+    | some (HypKind.val s, A) => some (.expr s A)
     | _ => none
 
   -- ── Constants ─────────────────────────────────────────────────────────────
