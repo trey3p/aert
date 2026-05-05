@@ -1,0 +1,64 @@
+import Ambifine.Untyped
+import Ambifine.Context
+
+-- Shift all free variables with index ≥ cutoff up by shift.
+-- The binding depth encoded in each TermKind index determines how much
+-- the cutoff grows as lift descends under binders.
+def Term.lift (cutoff shift : Nat) : Term → Term
+  | .var v             => .var (if v < cutoff then v else v + shift)
+  | .const c           => .const c
+  | .unary k t         => .unary k (t.lift cutoff shift)
+  | .bin k l r         => .bin k (l.lift cutoff shift) (r.lift cutoff shift)
+  | .abs k A t         => .abs k (A.lift cutoff shift) (t.lift (cutoff + 1) shift)
+  | .tri k A l r       => .tri k (A.lift cutoff shift) (l.lift cutoff shift)
+                                  (r.lift cutoff shift)
+  | .ir k x y P        => .ir k (x.lift cutoff shift) (y.lift cutoff shift)
+                                  (P.lift (cutoff + 1) shift)
+  | .cases k K d l r   => .cases k (K.lift cutoff shift) (d.lift cutoff shift)
+                                    (l.lift (cutoff + 1) shift)
+                                    (r.lift (cutoff + 1) shift)
+  | .let_bin k P e e'  => .let_bin k (P.lift cutoff shift) (e.lift cutoff shift)
+                                      (e'.lift (cutoff + 2) shift)
+  | .let_bin_beta k P l r e' =>
+      .let_bin_beta k (P.lift cutoff shift) (l.lift cutoff shift)
+                      (r.lift cutoff shift) (e'.lift (cutoff + 2) shift)
+  | .nr k K e z s      => .nr k (K.lift (cutoff + 1) shift) (e.lift cutoff shift)
+                                 (z.lift cutoff shift) (s.lift (cutoff + 2) shift)
+  | .nz k K z s        => .nz k (K.lift (cutoff + 1) shift) (z.lift cutoff shift)
+                                  (s.lift (cutoff + 2) shift)
+
+def Term.wk1 (t : Term) : Term := t.lift 0 1
+def Term.wkn (n : Nat) (t : Term) : Term := t.lift 0 n
+
+-- Computable analogue of HasVar: walk the context, applying wk1 at each step
+-- so the returned type is valid in the full context (not just the tail).
+def lookupVar : Context → Nat → Option (HypKind × Term)
+  | [],     _     => none
+  | h :: _, 0     => some (h.kind, h.ty.wk1)
+  | _ :: Γ, n + 1 => lookupVar Γ n |>.map (fun (k, A) => (k, A.wk1))
+
+def Subst := Nat → Term
+
+def Subst.lift (s : Subst) : Subst
+  | 0 => Term.var 0
+  | n + 1 => Term.wk1 (s n)
+
+def Term.subst (e : Term) (s : Subst ) : Term :=
+  match e with
+  | Term.var n => s n
+  | Term.const k => Term.const k
+  | Term.unary k t => Term.unary k (t.subst s)
+  | Term.bin k l r => Term.bin k (l.subst s) (r.subst s)
+  | Term.abs k A t => Term.abs k (A.subst s) (t.subst s.lift)
+  | Term.tri k A l r => Term.tri k (A.subst s) (l.subst s) (r.subst s)
+  | Term.ir k x y P => Term.ir k (x.subst s) (y.subst s) (P.subst s.lift)
+  | Term.cases k K d l r =>
+      Term.cases k (K.subst s) (d.subst s) (l.subst s.lift) (r.subst s.lift)
+  | Term.let_bin k P e e' =>
+      Term.let_bin k (P.subst s) (e.subst s) (e'.subst s.lift.lift)
+  | Term.let_bin_beta k P l r e' =>
+      Term.let_bin_beta k (P.subst s) (l.subst s) (r.subst s) (e'.subst s.lift.lift)
+  | Term.nr k K e z q =>
+      Term.nr k (K.subst s.lift) (e.subst s) (z.subst s) (q.subst s.lift.lift)
+  | Term.nz k K z q =>
+      Term.nz k (K.subst s.lift) (z.subst s) (q.subst s.lift.lift)
