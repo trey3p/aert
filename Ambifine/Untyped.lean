@@ -1,3 +1,5 @@
+import Lean
+
 /-!
   Untyped terms of Lambda_ert, copied from old-ert repo.
 -/
@@ -113,7 +115,7 @@ deriving BEq, Repr
 
 inductive Term: Type
   | var (v: Nat)
-
+  | proof (e : Lean.Expr) (ty : Term)
   | const (c: TermKind [])
   | unary (k: TermKind [0]) (t: Term)
   | let_bin (k: TermKind [0, 0, 2]) (P: Term) (e: Term) (e': Term)

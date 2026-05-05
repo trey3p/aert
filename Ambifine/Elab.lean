@@ -50,6 +50,7 @@ partial def elabErtType (ctx : List Name) : Syntax → CommandElabM Untyped.Term
   | stx => throwErrorAt stx "Unsupported ERT type: {stx}"
 
 partial def elabErtProp (ctx : List Name) : Syntax → CommandElabM Untyped.Term
+  | `(ertProp| ⊤) => return Untyped.Term.top
   | `(ertProp| ⊥) => return Untyped.Term.bot
   | `(ertProp| ($x : $P) ⇒ $Q) => do
     let P_term ← elabErtProp ctx P
@@ -75,11 +76,15 @@ partial def elabErtProp (ctx : List Name) : Syntax → CommandElabM Untyped.Term
     let xName := x.getId
     let P_term ← elabErtProp (xName :: ctx) P
     return Untyped.Term.exists_ A_term P_term
-  | `(ertProp| $t:ertTerm = $u:ertTerm) => throwErrorAt t "Term elaboration not yet implemented"
+  | `(ertProp| $t:ertTerm = $u:ertTerm) => do
+    let t_term ← elabErtTerm ctx t
+    let u_term ← elabErtTerm ctx u
+    /- `eq` expects to have the type of the two terms,
+      we leave a placeholder of unit for the type.
+    -/
+    return Untyped.Term.eq Untyped.Term.unit t_term u_term
   | `(ertProp| ($P)) => elabErtProp ctx P
   | stx => throwErrorAt stx "Unsupported ERT prop: {stx}"
-
-end
 
 partial def elabErtTerm (ctx : List Name) : Syntax → CommandElabM Untyped.Term
   | `(ertTerm| succ) => return Untyped.Term.succ
@@ -88,17 +93,29 @@ partial def elabErtTerm (ctx : List Name) : Syntax → CommandElabM Untyped.Term
     match ctx.findIdx? (· == xName) with
     | some i => return Untyped.Term.var i
     | none => throwErrorAt x "Unknown variable: {xName}"
-  | `(ertTerm| λ $x : $A . $t) => do
+  | `(ertTerm| λ $x : $A:ertType . $t) => do
     let A_term ← elabErtType ctx A
     let xName := x.getId
     let t_term ← elabErtTerm (xName :: ctx) t
     return Untyped.Term.lam A_term t_term
-  | `(ertTerm| $f $a) => do
+  | `(ertTerm| λ $x : $P:ertProp . $t) => do
+    let P_term ← elabErtProp ctx P
+    let xName := x.getId
+    let t_term ← elabErtTerm (xName :: ctx) t
+    return Untyped.Term.lam_pr P_term t_term
+  | `(ertTerm| $f:ertTerm $a:ertTerm) => do
     let f_term ← elabErtTerm ctx f
     let a_term ← elabErtTerm ctx a
     /- `app` expects the type of the function to be given
     - We leave a placeholder of `unit` there so that it can be inferred later. -/
     return Untyped.Term.app Untyped.Term.unit f_term a_term
+  | `(ertTerm| $f:ertTerm ($a:term : $P:ertProp)) => do
+    let f_term ← elabErtTerm ctx f
+    let P_term ← elabErtProp ctx P
+    let proof ← liftTermElabM $ Term.elabTermAndSynthesize a none
+    /- `app_pr` expects the type of the function to be given
+    - We leave a placeholder of `unit` there so that it can be inferred later. -/
+    return Untyped.Term.app_pr Untyped.Term.unit f_term (Untyped.Term.proof proof P_term)
   | `(ertTerm| ($t, $u)) => do
     let t_term ← elabErtTerm ctx t
     let u_term ← elabErtTerm ctx u
@@ -126,6 +143,18 @@ partial def elabErtTerm (ctx : List Name) : Syntax → CommandElabM Untyped.Term
     let xrName := xr.getId
     let r_term ← elabErtTerm (xrName :: ctx) r
     return Untyped.Term.case .type K_term d_term l_term r_term
+  | `(ertTerm| {$x, $p : $P}) => do
+    let x_term ← elabErtTerm ctx x
+    let P_term ← elabErtProp ctx P
+    let p_term ← liftTermElabM $ Term.elabTermAndSynthesize p none
+    return Untyped.Term.elem x_term (Untyped.Term.proof p_term P_term)
+  | `(ertTerm| let {$a, $b} : $A = $x in $e) => do
+    let A_term ← elabErtType ctx A
+    let x_term ← elabErtTerm ctx x
+    let aName := a.getId
+    let bName := b.getId
+    let e_term ← elabErtTerm (bName :: aName :: ctx) e
+    return Untyped.Term.let_set .type A_term x_term e_term
   | `(ertTerm| λ ‖$x : $A‖ . $t) => do
     let A_term ← elabErtType ctx A
     let xName := x.getId
@@ -163,19 +192,16 @@ partial def elabErtTerm (ctx : List Name) : Syntax → CommandElabM Untyped.Term
   | `(ertTerm| ($t)) => elabErtTerm ctx t
   | stx => throwErrorAt stx "Unsupported ERT term: {stx}"
 
+end
+
 def elabErtStatement : CommandElab
   | `(ertStatement| def $name : $ty := $body) => do
     let type ← elabErtType [] ty
     let term ← elabErtTerm [] body
-    Lean.logInfo m!"type: {repr type}\nterm: {repr term}"
+    -- Lean.logInfo m!"type: {repr type}\nterm: {repr term}"
   | _ => throwUnsupportedSyntax
 
 @[command_elab ert]
 def ertImpl : CommandElab := fun stx => do
   for i in stx[2].getArgs do
     elabErtStatement i
-
-set_option pp.rawOnError true
-#lang ERT
-def test : (x : 𝟙) → 𝟙 := 3
-def test2 : 𝟙 := 5

@@ -16,6 +16,7 @@ syntax "ℕ" : ertType
 syntax "(" ertType ")" : ertType
 
 -- Syntax for props
+syntax "⊤" : ertProp
 syntax "⊥" : ertProp
 syntax "(" ident " : " ertProp ")" " ⇒ " ertProp : ertProp
 syntax "(" ident " : " ertProp ")" " ∧ " ertProp : ertProp
@@ -37,8 +38,8 @@ syntax "inr" ertTerm : ertTerm
 syntax "cases" "[" ident ":" ertType "↦" ertType "]" ertTerm "|" "inl" ident "↦" ertTerm
   "|" "inr" ident "↦" ertTerm : ertTerm
 syntax "λ" ident " : " ertProp " . " ertTerm : ertTerm
-syntax ertTerm ertProp : ertTerm
-syntax "{" ertTerm ", " ertProp "}" : ertTerm
+syntax ertTerm "(" term " : " ertProp ")" : ertTerm
+syntax "{" ertTerm ", " term " :  " ertProp "}" : ertTerm
 syntax "let" "{" ident ", " ident "}" " : " ertType " = "
   ertTerm " in " ertTerm : ertTerm
 syntax "λ" "‖" ident " : " ertType "‖" " . " ertTerm : ertTerm
@@ -55,8 +56,3 @@ syntax "(" ertTerm ")" : ertTerm
 syntax "def" ident " : " ertType " := " ertTerm : ertStatement
 
 syntax (name := ert) "#lang" "ERT" ertStatement+ : command
-
-/-#lang ERT
-
-def test : ℕ := 0
-def test : ℕ := 0-/
