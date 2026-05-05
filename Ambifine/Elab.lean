@@ -195,9 +195,9 @@ partial def elabErtTerm (ctx : List Name) : Syntax → CommandElabM Untyped.Term
 end
 
 def elabErtStatement : CommandElab
-  | `(ertStatement| def $name : $ty := $body) => do
-    let type ← elabErtType [] ty
-    let term ← elabErtTerm [] body
+  | `(ertStatement| def $_name : $ty := $body) => do
+    let _type ← elabErtType [] ty
+    let _term ← elabErtTerm [] body
     -- Lean.logInfo m!"type: {repr type}\nterm: {repr term}"
   | _ => throwUnsupportedSyntax
 

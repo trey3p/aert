@@ -1,4 +1,5 @@
 import Ambifine.Untyped
+open Untyped
 
 inductive HypKind
   | val (s: AnnotSort) -- Computational/Logical

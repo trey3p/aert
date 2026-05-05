@@ -2,6 +2,8 @@ import Ambifine.Untyped
 import Ambifine.Context
 import Ambifine.Subst
 
+namespace Untyped
+
 -- Mirrors old-ert's Annot: distinguishes "e is a type/prop" from "e has type A"
 inductive Annot where
   | sort : AnnotSort → Annot
@@ -284,3 +286,5 @@ def inferType (Γ : Context) (e : Term) : Option Annot :=
   -- ir forms        : equality proofs (trans, cong, prir, …)
   -- nz forms        : beta-reduction proofs
   | _ => none
+
+end Untyped
