@@ -64,46 +64,6 @@ inductive TermKind: List Nat -> Type
   | repr: TermKind [0, 0]
   | let_repr: AnnotSort -> TermKind [0, 0, 2]
 
-  -- Proofs
-  | triv: TermKind []
-  | abort: TermKind [0]
-  -- Consider merging with intro/elim for (pi, prop, prop)
-  | imp: TermKind [0, 1]
-  | mp: TermKind [0, 0, 0]
-  -- Consider merging with intro/elim for (sigma, prop, prop)
-  | dconj: TermKind [0, 0]
-  | let_conj: TermKind [0, 0, 2]
-  | disj (b: Fin 2): TermKind [0]
-  | case_pr: TermKind [0, 0, 1, 1]
-  -- Consider merging with intro/elim for
-  -- (pi, ghost, prop) == (pi, type, prop)
-  | general: TermKind [0, 1]
-  | inst: TermKind [0, 0, 0]
-  -- Consider merging with intro/elim for
-  -- (sigma, ghost, prop) == (sigma, type, prop)
-  | wit: TermKind [0, 0]
-  | let_wit: TermKind [0, 0, 2]
-
-  -- Theory of equality
-  | eq: TermKind [0, 0, 0]
-  | refl: TermKind [0]
-  | discr: TermKind [0, 0, 0]
-  | unit_unique: TermKind [0]
-  | cong: TermKind [0, 0, 1]
-  | trans: TermKind [0, 0, 1]
-  | beta: TermKind [0, 1]
-  | beta_trans: TermKind [0, 0, 1]
-  | beta_pr: TermKind [0, 1]
-  | beta_ir: TermKind [0, 1]
-  | beta_left: TermKind [0, 0, 1, 1]
-  | beta_right: TermKind [0, 0, 1, 1]
-  | beta_pair: TermKind [0, 0, 0, 2]
-  | beta_set: TermKind [0, 0, 0, 2]
-  | beta_repr: TermKind [0, 0, 0, 2]
-  | eta: TermKind [0, 0]
-  | irir: TermKind [0, 0, 0]
-  | prir: TermKind [0, 0, 1]
-
   -- Natural numbers
   | nats: TermKind []
   | zero: TermKind []
@@ -167,39 +127,6 @@ abbrev Term.lam_irrel := abs TermKind.lam_irrel
 abbrev Term.app_irrel := tri TermKind.app_irrel
 abbrev Term.repr := bin TermKind.repr
 abbrev Term.let_repr := λk => let_bin (TermKind.let_repr k)
-
--- Proofs
-abbrev Term.triv := const TermKind.triv
-abbrev Term.abort := unary TermKind.abort
-abbrev Term.dconj := bin TermKind.dconj
-abbrev Term.let_conj := let_bin TermKind.let_conj
-abbrev Term.disj := λb => unary (TermKind.disj b)
-abbrev Term.case_pr := cases TermKind.case_pr
-abbrev Term.imp := abs TermKind.imp
-abbrev Term.mp := tri TermKind.mp
-abbrev Term.general := abs TermKind.general
-abbrev Term.inst := tri TermKind.inst
-abbrev Term.wit := bin TermKind.wit
-abbrev Term.let_wit := let_bin TermKind.let_wit
-
--- Theory of equality
-abbrev Term.refl := unary TermKind.refl
-abbrev Term.discr := tri TermKind.discr
-abbrev Term.unit_unique := unary TermKind.unit_unique
-abbrev Term.cong := ir TermKind.cong
-abbrev Term.trans := ir TermKind.trans
-abbrev Term.beta := abs TermKind.beta
-abbrev Term.beta_trans := ir TermKind.beta_trans
-abbrev Term.beta_pr := abs TermKind.beta_pr
-abbrev Term.beta_ir := abs TermKind.beta_ir
-abbrev Term.eta := bin TermKind.eta
-abbrev Term.irir := tri TermKind.irir
-abbrev Term.prir := ir TermKind.prir
-abbrev Term.beta_left := cases TermKind.beta_left
-abbrev Term.beta_right := cases TermKind.beta_right
-abbrev Term.beta_pair := let_bin_beta TermKind.beta_pair
-abbrev Term.beta_set := let_bin_beta TermKind.beta_set
-abbrev Term.beta_repr := let_bin_beta TermKind.beta_repr
 
 -- Natural numbers
 abbrev Term.zero := const TermKind.zero
