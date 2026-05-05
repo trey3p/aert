@@ -1,11 +1,13 @@
-/--
+/-!
   Untyped terms of Lambda_ert, copied from old-ert repo.
 -/
+
+namespace Untyped
 
 inductive AnnotSort
   | type
   | prop
-  deriving DecidableEq, BEq
+  deriving DecidableEq, BEq, Repr
 
 -- Term kinds
 --TODO: consider making higher order?
@@ -107,7 +109,7 @@ inductive TermKind: List Nat -> Type
   | natrec: AnnotSort -> TermKind [1, 0, 0, 2]
   | beta_zero: TermKind [1, 0, 2]
   | beta_succ: TermKind [1, 0, 0, 2]
-deriving BEq
+deriving BEq, Repr
 
 inductive Term: Type
   | var (v: Nat)
@@ -123,7 +125,8 @@ inductive Term: Type
   | cases (k: TermKind [0, 0, 1, 1]) (K: Term) (d: Term) (l: Term) (r: Term)
   | nr (k: TermKind [1, 0, 0, 2]) (K: Term) (e: Term) (z: Term) (s: Term)
   | nz (k: TermKind [1, 0, 2]) (K: Term) (z: Term) (s: Term)
-deriving BEq
+deriving BEq, Repr
+
 -- Types
 abbrev Term.unit := const TermKind.unit
 abbrev Term.nats := const TermKind.nats
@@ -202,3 +205,5 @@ abbrev Term.succ := const TermKind.succ
 abbrev Term.natrec (k) := nr (TermKind.natrec k)
 abbrev Term.beta_zero := nz TermKind.beta_zero
 abbrev Term.beta_succ := nr TermKind.beta_succ
+
+end Untyped

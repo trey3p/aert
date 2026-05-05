@@ -4,15 +4,15 @@ declare_syntax_cat ertTerm
 declare_syntax_cat ertStatement
 
 -- Syntax for types
-syntax (name := unit) "𝟙" : ertType
-syntax (name := arrow) "(" ident ":" ertType ")" " → " ertType : ertType
-syntax (name := prod) "(" ident " : " ertType ")" " × " ertType : ertType
-syntax (name := sum) ertType " + " ertType : ertType
-syntax (name := propArrow) "(" ident " : " ertProp ")" " ⇒ " ertType : ertType
-syntax (name := subtype) "{" ident " : " ertType " | " ertProp "}" : ertType
-syntax (name := universal) "∀" ident " : " ertType ", " ertType : ertType
-syntax (name := existential) "∃" ident " : " ertType ", " ertType : ertType
-syntax (name := nat) "ℕ" : ertType
+syntax "𝟙" : ertType
+syntax "(" ident ":" ertType ")" " → " ertType : ertType
+syntax "(" ident " : " ertType ")" " × " ertType : ertType
+syntax ertType " + " ertType : ertType
+syntax "(" ident " : " ertProp ")" " ⇒ " ertType : ertType
+syntax "{" ident " : " ertType " | " ertProp "}" : ertType
+syntax "∀" ident " : " ertType ", " ertType : ertType
+syntax "∃" ident " : " ertType ", " ertType : ertType
+syntax "ℕ" : ertType
 syntax "(" ertType ")" : ertType
 
 -- Syntax for props
@@ -34,22 +34,22 @@ syntax "let " "(" ident ", " ident ")" ":" ertType " = " ertTerm
   " in " ertTerm : ertTerm
 syntax "inl" ertTerm : ertTerm
 syntax "inr" ertTerm : ertTerm
-syntax "cases" "[" ident "↦" ertType "]" ertTerm "(" "inl" ident "↦" ertTerm ")"
-  "(" "inr" ident "↦" ertTerm ")" : ertTerm
+syntax "cases" "[" ident ":" ertType "↦" ertType "]" ertTerm "|" "inl" ident "↦" ertTerm
+  "|" "inr" ident "↦" ertTerm : ertTerm
 syntax "λ" ident " : " ertProp " . " ertTerm : ertTerm
 syntax ertTerm ertProp : ertTerm
 syntax "{" ertTerm ", " ertProp "}" : ertTerm
 syntax "let" "{" ident ", " ident "}" " : " ertType " = "
   ertTerm " in " ertTerm : ertTerm
 syntax "λ" "‖" ident " : " ertType "‖" " . " ertTerm : ertTerm
-syntax ertTerm "‖" ertTerm "‖" : ertTerm
+syntax ertTerm "(‖" ertTerm "‖)" : ertTerm
 syntax "(" "‖" ertTerm "‖" ", " ertTerm ")" : ertTerm
 syntax "let" "(" "‖" ident "‖" ", " ident ")" " : " ertType " = "
   ertTerm " in " ertTerm : ertTerm
 syntax num : ertTerm
 syntax "succ" : ertTerm
-syntax "natrec" "[" ident "↦" ertType "]" ertTerm ertTerm
-  "(" "‖" "succ" ident "‖" ", " ident "↦" ertTerm ")" : ertTerm
+syntax "natrec" "[" ident "↦" ertType "]" ertTerm "|" ertTerm
+  "|" "‖" "succ" ident "‖" ", " ident "↦" ertTerm : ertTerm
 syntax "(" ertTerm ")" : ertTerm
 
 syntax "def" ident " : " ertType " := " ertTerm : ertStatement
