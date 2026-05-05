@@ -8,7 +8,7 @@ inductive Annot where
 
 -- Shift all free variables with index ≥ cutoff up by shift.
 -- The binding depth encoded in each TermKind index determines how much
--- the cutoff grows as we descend into each argument.
+-- the cutoff grows as lift descends under binders.
 def Term.lift (cutoff shift : Nat) : Term → Term
   | .var v             => .var (if v < cutoff then v else v + shift)
   | .const c           => .const c
