@@ -15,7 +15,7 @@ inductive Annot where
 --   - inj, disj, abort, case, let_bin, ir, nz: not inferrable (see bottom).
 def inferType (Γ : Context) (e : Term) : Option Annot :=
   match e with
-
+  | Term.proof k p => Annot.expr Annot.prop p
   -- Variables: ghost bindings are not directly usable as values
   | Term.var n =>
     match lookupVar Γ n with
