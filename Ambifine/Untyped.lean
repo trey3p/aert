@@ -107,6 +107,7 @@ inductive TermKind: List Nat -> Type
   | natrec: AnnotSort -> TermKind [1, 0, 0, 2]
   | beta_zero: TermKind [1, 0, 2]
   | beta_succ: TermKind [1, 0, 0, 2]
+deriving BEq
 
 inductive Term: Type
   | var (v: Nat)
@@ -122,7 +123,7 @@ inductive Term: Type
   | cases (k: TermKind [0, 0, 1, 1]) (K: Term) (d: Term) (l: Term) (r: Term)
   | nr (k: TermKind [1, 0, 0, 2]) (K: Term) (e: Term) (z: Term) (s: Term)
   | nz (k: TermKind [1, 0, 2]) (K: Term) (z: Term) (s: Term)
-
+deriving BEq
 -- Types
 abbrev Term.unit := const TermKind.unit
 abbrev Term.nats := const TermKind.nats
@@ -147,6 +148,7 @@ abbrev Term.eq := tri TermKind.eq
 -- Terms
 abbrev Term.nil := const TermKind.nil
 abbrev Term.lam := abs TermKind.lam
+@[match_pattern]
 abbrev Term.app := tri TermKind.app
 abbrev Term.pair := bin TermKind.pair
 abbrev Term.let_pair := λk => let_bin (TermKind.let_pair k)

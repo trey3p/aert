@@ -62,3 +62,19 @@ def Term.subst (e : Term) (s : Subst ) : Term :=
       Term.nr k (K.subst s.lift) (e.subst s) (z.subst s) (q.subst s.lift.lift)
   | Term.nz k K z q =>
       Term.nz k (K.subst s.lift) (z.subst s) (q.subst s.lift.lift)
+
+-- Single-variable substitution: replace var 0 with t, decrement all others.
+def Subst.subst0 (t : Term) : Subst
+  | 0     => t
+  | n + 1 => .var n
+
+def Term.subst0 (e r : Term) : Term := e.subst (Subst.subst0 r)
+
+-- alpha-substitution: replace var 0 with t, leave all other variables unchanged.
+-- Unlike subst0, does NOT decrement vars ≥ 1.  Used for motive instantiation
+-- in eliminator result types (natrec step, case branches, etc.).
+def Subst.alpha0 (t : Term) : Subst
+  | 0     => t
+  | n + 1 => .var (n + 1)
+
+def Term.alpha0 (e r : Term) : Term := e.subst (Subst.alpha0 r)

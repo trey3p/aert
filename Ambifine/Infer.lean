@@ -1,52 +1,16 @@
 import Ambifine.Untyped
 import Ambifine.Context
+import Ambifine.Subst
 
 -- Mirrors old-ert's Annot: distinguishes "e is a type/prop" from "e has type A"
 inductive Annot where
   | sort : AnnotSort → Annot
   | expr : AnnotSort → Term → Annot
 
--- Shift all free variables with index ≥ cutoff up by shift.
--- The binding depth encoded in each TermKind index determines how much
--- the cutoff grows as lift descends under binders.
-def Term.lift (cutoff shift : Nat) : Term → Term
-  | .var v             => .var (if v < cutoff then v else v + shift)
-  | .const c           => .const c
-  | .unary k t         => .unary k (t.lift cutoff shift)
-  | .bin k l r         => .bin k (l.lift cutoff shift) (r.lift cutoff shift)
-  | .abs k A t         => .abs k (A.lift cutoff shift) (t.lift (cutoff + 1) shift)
-  | .tri k A l r       => .tri k (A.lift cutoff shift) (l.lift cutoff shift)
-                                  (r.lift cutoff shift)
-  | .ir k x y P        => .ir k (x.lift cutoff shift) (y.lift cutoff shift)
-                                  (P.lift (cutoff + 1) shift)
-  | .cases k K d l r   => .cases k (K.lift cutoff shift) (d.lift cutoff shift)
-                                    (l.lift (cutoff + 1) shift)
-                                    (r.lift (cutoff + 1) shift)
-  | .let_bin k P e e'  => .let_bin k (P.lift cutoff shift) (e.lift cutoff shift)
-                                      (e'.lift (cutoff + 2) shift)
-  | .let_bin_beta k P l r e' =>
-      .let_bin_beta k (P.lift cutoff shift) (l.lift cutoff shift)
-                      (r.lift cutoff shift) (e'.lift (cutoff + 2) shift)
-  | .nr k K e z s      => .nr k (K.lift (cutoff + 1) shift) (e.lift cutoff shift)
-                                 (z.lift cutoff shift) (s.lift (cutoff + 2) shift)
-  | .nz k K z s        => .nz k (K.lift (cutoff + 1) shift) (z.lift cutoff shift)
-                                  (s.lift (cutoff + 2) shift)
-
-def Term.wk1 (t : Term) : Term := t.lift 0 1
-def Term.wkn (n : Nat) (t : Term) : Term := t.lift 0 n
-
--- Computable analogue of HasVar: walk the context, applying wk1 at each step
--- so the returned type is valid in the full context (not just the tail).
-def lookupVar : Context → Nat → Option (HypKind × Term)
-  | [],     _     => none
-  | h :: _, 0     => some (h.kind, h.ty.wk1)
-  | _ :: Γ, n + 1 => lookupVar Γ n |>.map (fun (k, A) => (k, A.wk1))
-
 -- inferType mirrors HasType as a decision procedure.
--- Limitations vs the full HasType relation:
---   - Cases whose result type requires substitution (app, eliminations,
---     natrec, equality terms) return none until subst is implemented.
---   - Context upgrade (Γ.upgrade) for ghost/irrelevance is not applied.
+-- Deviations from old-ert's HasType:
+--   - Context upgrade (Γ.upgrade) is not applied; ghost-context checks use Γ.
+--   - inj, disj, abort, case, let_bin, ir, nz: not inferrable (see bottom).
 def inferType (Γ : Context) (e : Term) : Option Annot :=
   match e with
 
@@ -155,6 +119,59 @@ def inferType (Γ : Context) (e : Term) : Option Annot :=
         some (.expr .type (Term.abs TermKind.intersect A B))
     | _, _ => none
 
+  -- ── Function / proof eliminations ─────────────────────────────────────────
+
+  -- app (pi A B) f x : term (B.subst0 x)
+  | Term.app _ f x =>
+    match inferType Γ f with
+    | some (.expr .type (Term.abs TermKind.pi A B)) =>
+        match inferType Γ x with
+        | some (.expr .type A') =>
+            if A == A' then some (.expr .type (B.subst0 x)) else none
+        | _ => none
+    | _ => none
+
+  -- app_pr (assume φ A) l r : term (A.subst0 r)
+  | Term.tri TermKind.app_pr _ l r =>
+    match inferType Γ l with
+    | some (.expr .type (Term.abs TermKind.assume φ A)) =>
+        match inferType Γ r with
+        | some (.expr .prop φ') =>
+            if φ == φ' then some (.expr .type (A.subst0 r)) else none
+        | _ => none
+    | _ => none
+
+  -- app_irrel (intersect A B) l r : term (B.subst0 r)
+  | Term.tri TermKind.app_irrel _ l r =>
+    match inferType Γ l with
+    | some (.expr .type (Term.abs TermKind.intersect A B)) =>
+        match inferType Γ r with
+        | some (.expr .type A') =>
+            if A == A' then some (.expr .type (B.subst0 r)) else none
+        | _ => none
+    | _ => none
+
+  -- mp (dimplies φ ψ) l r : proof (ψ.subst0 r)
+  | Term.tri TermKind.mp _ l r =>
+    match inferType Γ l with
+    | some (.expr .prop (Term.abs TermKind.dimplies φ ψ)) =>
+        match inferType Γ r with
+        | some (.expr .prop φ') =>
+            if φ == φ' then some (.expr .prop (ψ.subst0 r)) else none
+        | _ => none
+    | _ => none
+
+  -- inst (forall_ A φ) l r : proof (φ.subst0 r)
+  -- Note: old-ert checks r in Γ.upgrade; we check r in Γ (sound over-approx).
+  | Term.tri TermKind.inst _ l r =>
+    match inferType Γ l with
+    | some (.expr .prop (Term.abs TermKind.forall_ A φ)) =>
+        match inferType Γ r with
+        | some (.expr .type A') =>
+            if A == A' then some (.expr .prop (φ.subst0 r)) else none
+        | _ => none
+    | _ => none
+
   -- ── Proof introductions ───────────────────────────────────────────────────
 
   -- imp φ s : dimplies φ ψ  when s : proof ψ in (φ :: Γ)
@@ -171,11 +188,99 @@ def inferType (Γ : Context) (e : Term) : Option Annot :=
         some (.expr .prop (Term.abs TermKind.forall_ A φ))
     | _, _ => none
 
-  -- ── Needs substitution or context upgrade ─────────────────────────────────
-  -- app, app_pr, app_irrel         : result is B.subst0 r
-  -- pair, elem, repr, wit, dconj   : checking requires subst
-  -- let_bin, let_bin_beta, cases   : eliminations, result needs subst
-  -- nr (natrec), nz                : result is C.subst0 e
-  -- unary (abort, refl, inj, disj) : abort needs annotation; others need subst/upgrade
-  -- ir (cong, trans, prir, …)      : equality terms
+  -- ── Dependent pair / set / union introductions ─────────────────────────────
+  -- We use the wk1 trick: given l : A and r : B_r, the weakest valid type is
+  -- sigma A (B_r.wk1), since (B_r.wk1).subst0 l = B_r holds definitionally.
+
+  -- pair l r : term (sigma A (B_r.wk1))
+  | Term.bin TermKind.pair l r =>
+    match inferType Γ l, inferType Γ r with
+    | some (.expr .type A), some (.expr .type B_r) =>
+        some (.expr .type (Term.abs TermKind.sigma A B_r.wk1))
+    | _, _ => none
+
+  -- elem l r : term (set A (φ_r.wk1))
+  | Term.bin TermKind.elem l r =>
+    match inferType Γ l, inferType Γ r with
+    | some (.expr .type A), some (.expr .prop φ_r) =>
+        some (.expr .type (Term.abs TermKind.set A φ_r.wk1))
+    | _, _ => none
+
+  -- repr l r : term (union A (B_r.wk1))
+  -- Note: old-ert checks l in Γ.upgrade; we check l in Γ (sound over-approx).
+  | Term.bin TermKind.repr l r =>
+    match inferType Γ l, inferType Γ r with
+    | some (.expr .type A), some (.expr .type B_r) =>
+        some (.expr .type (Term.abs TermKind.union A B_r.wk1))
+    | _, _ => none
+
+  -- dconj l r : proof (dand A (B_r.wk1))
+  | Term.bin TermKind.dconj l r =>
+    match inferType Γ l, inferType Γ r with
+    | some (.expr .prop A), some (.expr .prop B_r) =>
+        some (.expr .prop (Term.abs TermKind.dand A B_r.wk1))
+    | _, _ => none
+
+  -- wit l r : proof (exists_ A (φ_r.wk1))
+  -- Note: old-ert checks l in Γ.upgrade; we check l in Γ (sound over-approx).
+  | Term.bin TermKind.wit l r =>
+    match inferType Γ l, inferType Γ r with
+    | some (.expr .type A), some (.expr .prop φ_r) =>
+        some (.expr .prop (Term.abs TermKind.exists_ A φ_r.wk1))
+    | _, _ => none
+
+  -- ── Equality introductions ────────────────────────────────────────────────
+
+  -- refl a : proof (eq A a a)
+  -- Note: old-ert checks a in Γ.upgrade; we check a in Γ (sound over-approx).
+  | Term.unary TermKind.refl a =>
+    match inferType Γ a with
+    | some (.expr .type A) => some (.expr .prop (Term.tri TermKind.eq A a a))
+    | _ => none
+
+  -- unit_unique a : proof (eq unit a nil)
+  | Term.unary TermKind.unit_unique a =>
+    match inferType Γ a with
+    | some (.expr .type (Term.const TermKind.unit)) =>
+        some (.expr .prop (Term.tri TermKind.eq Term.unit a Term.nil))
+    | _ => none
+
+  -- ── Natural number recursion ──────────────────────────────────────────────
+
+  -- natrec type C e z s : expr type (C.subst0 e)
+  --   C : type under ghost(nats)::Γ   (motive, var 0 = n)
+  --   e : nats                         (subject)
+  --   z : term (C.subst0 zero)         (base case)
+  --   s : term ((C.lift 1 1).alpha0 (app (pi nats nats) succ (var 1)))
+  --       in  (val C type) :: (val nats type) :: Γ   (step; old-ert uses gst for nats)
+  | Term.nr (TermKind.natrec .type) C e z s =>
+    match inferType (Hyp.gst Term.nats :: Γ) C with
+    | some (.sort .type) =>
+      match inferType Γ e with
+      | some (.expr .type (Term.const TermKind.nats)) =>
+        match inferType Γ z with
+        | some (.expr .type z_ty) =>
+          if z_ty == C.subst0 Term.zero then
+            let succ_app := Term.tri TermKind.app
+                              (Term.abs TermKind.pi Term.nats Term.nats)
+                              Term.succ (Term.var 1)
+            let step_ty  := (C.lift 1 1).alpha0 succ_app
+            let step_ctx := Hyp.val C .type :: Hyp.val Term.nats .type :: Γ
+            match inferType step_ctx s with
+            | some (.expr .type s_ty) =>
+                if s_ty == step_ty then some (.expr .type (C.subst0 e)) else none
+            | _ => none
+          else none
+        | _ => none
+      | _ => none
+    | _ => none
+
+  -- ── Not inferrable without annotation ────────────────────────────────────
+  -- abort           : return type is arbitrary, no annotation in term
+  -- inj b / disj b  : need the other branch type
+  -- case / case_pr  : motive C not carried in the term
+  -- let_bin forms   : motive C not carried in the term
+  -- natrec prop     : requires Γ.upgrade (not implemented)
+  -- ir forms        : equality proofs (trans, cong, prir, …)
+  -- nz forms        : beta-reduction proofs
   | _ => none
