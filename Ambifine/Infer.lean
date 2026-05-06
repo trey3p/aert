@@ -15,7 +15,7 @@ inductive Annot where
 --   - inj, disj, abort, case, let_bin, ir, nz: not inferrable (see bottom).
 def inferType (Γ : Context) (e : Term) : Option Annot :=
   match e with
-  | Term.proof k p => Annot.expr Annot.prop p
+  | Term.proof k p => Annot.expr .prop p
   -- Variables: ghost bindings are not directly usable as values
   | Term.var n =>
     match lookupVar Γ n with
@@ -32,7 +32,7 @@ def inferType (Γ : Context) (e : Term) : Option Annot :=
   | Term.const TermKind.zero  => some (.expr .type Term.nats)
   -- succ : nats → nats  (pi nats nats is correct since nats is closed)
   | Term.const TermKind.succ  => some (.expr .type (Term.abs TermKind.pi Term.nats Term.nats))
-  | Term.const TermKind.triv  => some (.expr .prop Term.top)
+  --| Term.const TermKind.triv  => some (.expr .prop Term.top)
 
   -- ── Type formers ──────────────────────────────────────────────────────────
 
@@ -154,41 +154,41 @@ def inferType (Γ : Context) (e : Term) : Option Annot :=
     | _ => none
 
   -- mp (dimplies φ ψ) l r : proof (ψ.subst0 r)
-  | Term.tri TermKind.mp _ l r =>
+  /-| Term.tri TermKind.mp _ l r =>
     match inferType Γ l with
     | some (.expr .prop (Term.abs TermKind.dimplies φ ψ)) =>
         match inferType Γ r with
         | some (.expr .prop φ') =>
             if φ == φ' then some (.expr .prop (ψ.subst0 r)) else none
         | _ => none
-    | _ => none
+    | _ => none-/
 
   -- inst (forall_ A φ) l r : proof (φ.subst0 r)
   -- Note: old-ert checks r in Γ.upgrade; we check r in Γ (sound over-approx).
-  | Term.tri TermKind.inst _ l r =>
+  /-| Term.tri TermKind.inst _ l r =>
     match inferType Γ l with
     | some (.expr .prop (Term.abs TermKind.forall_ A φ)) =>
         match inferType Γ r with
         | some (.expr .type A') =>
             if A == A' then some (.expr .prop (φ.subst0 r)) else none
         | _ => none
-    | _ => none
+    | _ => none-/
 
   -- ── Proof introductions ───────────────────────────────────────────────────
 
   -- imp φ s : dimplies φ ψ  when s : proof ψ in (φ :: Γ)
-  | Term.abs TermKind.imp φ s =>
+  /-| Term.abs TermKind.imp φ s =>
     match inferType Γ φ, inferType (Hyp.val φ .prop :: Γ) s with
     | some (.sort .prop), some (.expr .prop ψ) =>
         some (.expr .prop (Term.abs TermKind.dimplies φ ψ))
-    | _, _ => none
+    | _, _ => none-/
 
   -- general A s : forall_ A φ  when s : proof φ in (A :: Γ)
-  | Term.abs TermKind.general A s =>
+  /-| Term.abs TermKind.general A s =>
     match inferType Γ A, inferType (Hyp.val A .type :: Γ) s with
     | some (.sort .type), some (.expr .prop φ) =>
         some (.expr .prop (Term.abs TermKind.forall_ A φ))
-    | _, _ => none
+    | _, _ => none-/
 
   -- ── Dependent pair / set / union introductions ─────────────────────────────
   -- We use the wk1 trick: given l : A and r : B_r, the weakest valid type is
@@ -217,35 +217,35 @@ def inferType (Γ : Context) (e : Term) : Option Annot :=
     | _, _ => none
 
   -- dconj l r : proof (dand A (B_r.wk1))
-  | Term.bin TermKind.dconj l r =>
+  /-| Term.bin TermKind.dconj l r =>
     match inferType Γ l, inferType Γ r with
     | some (.expr .prop A), some (.expr .prop B_r) =>
         some (.expr .prop (Term.abs TermKind.dand A B_r.wk1))
-    | _, _ => none
+    | _, _ => none-/
 
   -- wit l r : proof (exists_ A (φ_r.wk1))
   -- Note: old-ert checks l in Γ.upgrade; we check l in Γ (sound over-approx).
-  | Term.bin TermKind.wit l r =>
+  /-| Term.bin TermKind.wit l r =>
     match inferType Γ l, inferType Γ r with
     | some (.expr .type A), some (.expr .prop φ_r) =>
         some (.expr .prop (Term.abs TermKind.exists_ A φ_r.wk1))
-    | _, _ => none
+    | _, _ => none-/
 
   -- ── Equality introductions ────────────────────────────────────────────────
 
   -- refl a : proof (eq A a a)
   -- Note: old-ert checks a in Γ.upgrade; we check a in Γ (sound over-approx).
-  | Term.unary TermKind.refl a =>
+  /-| Term.unary TermKind.refl a =>
     match inferType Γ a with
     | some (.expr .type A) => some (.expr .prop (Term.tri TermKind.eq A a a))
-    | _ => none
+    | _ => none-/
 
   -- unit_unique a : proof (eq unit a nil)
-  | Term.unary TermKind.unit_unique a =>
+  /-| Term.unary TermKind.unit_unique a =>
     match inferType Γ a with
     | some (.expr .type (Term.const TermKind.unit)) =>
         some (.expr .prop (Term.tri TermKind.eq Term.unit a Term.nil))
-    | _ => none
+    | _ => none-/
 
   -- ── Natural number recursion ──────────────────────────────────────────────
 

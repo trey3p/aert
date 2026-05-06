@@ -71,6 +71,8 @@ inductive TermKind: List Nat -> Type
   | natrec: AnnotSort -> TermKind [1, 0, 0, 2]
   | beta_zero: TermKind [1, 0, 2]
   | beta_succ: TermKind [1, 0, 0, 2]
+
+  | eq: TermKind [0, 0, 0]
 deriving BEq, Repr
 
 inductive Term: Type
@@ -90,48 +92,47 @@ inductive Term: Type
 deriving BEq, Repr
 
 -- Types
-abbrev Term.unit := const TermKind.unit
-abbrev Term.nats := const TermKind.nats
-abbrev Term.pi := abs TermKind.pi
-abbrev Term.sigma := abs TermKind.sigma
-abbrev Term.coprod := bin TermKind.coprod
-abbrev Term.set := abs TermKind.set
-abbrev Term.assume := abs TermKind.assume
-abbrev Term.intersect := abs TermKind.intersect
-abbrev Term.union := abs TermKind.union
+@[match_pattern] abbrev Term.unit := const TermKind.unit
+@[match_pattern] abbrev Term.nats := const TermKind.nats
+@[match_pattern] abbrev Term.pi := abs TermKind.pi
+@[match_pattern] abbrev Term.sigma := abs TermKind.sigma
+@[match_pattern] abbrev Term.coprod := bin TermKind.coprod
+@[match_pattern] abbrev Term.set := abs TermKind.set
+@[match_pattern] abbrev Term.assume := abs TermKind.assume
+@[match_pattern] abbrev Term.intersect := abs TermKind.intersect
+@[match_pattern] abbrev Term.union := abs TermKind.union
 
 -- Propositions
-abbrev Term.top := const TermKind.top
-abbrev Term.bot := const TermKind.bot
-abbrev Term.dand := abs TermKind.dand
-abbrev Term.or := bin TermKind.or
-abbrev Term.dimplies := abs TermKind.dimplies
-abbrev Term.forall_ := abs TermKind.forall_
-abbrev Term.exists_ := abs TermKind.exists_
-abbrev Term.eq := tri TermKind.eq
+@[match_pattern] abbrev Term.top := const TermKind.top
+@[match_pattern] abbrev Term.bot := const TermKind.bot
+@[match_pattern] abbrev Term.dand := abs TermKind.dand
+@[match_pattern] abbrev Term.or := bin TermKind.or
+@[match_pattern] abbrev Term.dimplies := abs TermKind.dimplies
+@[match_pattern] abbrev Term.forall_ := abs TermKind.forall_
+@[match_pattern] abbrev Term.exists_ := abs TermKind.exists_
+@[match_pattern] abbrev Term.eq := tri TermKind.eq
 
 -- Terms
-abbrev Term.nil := const TermKind.nil
-abbrev Term.lam := abs TermKind.lam
-@[match_pattern]
-abbrev Term.app := tri TermKind.app
-abbrev Term.pair := bin TermKind.pair
-abbrev Term.let_pair := λk => let_bin (TermKind.let_pair k)
-abbrev Term.inj := λb => unary (TermKind.inj b)
-abbrev Term.case := λk => cases (TermKind.case k)
-abbrev Term.elem := bin TermKind.elem
-abbrev Term.let_set := λk => let_bin (TermKind.let_set k)
-abbrev Term.lam_pr := abs TermKind.lam_pr
-abbrev Term.app_pr := tri TermKind.app_pr
-abbrev Term.lam_irrel := abs TermKind.lam_irrel
-abbrev Term.app_irrel := tri TermKind.app_irrel
-abbrev Term.repr := bin TermKind.repr
-abbrev Term.let_repr := λk => let_bin (TermKind.let_repr k)
+@[match_pattern] abbrev Term.nil := const TermKind.nil
+@[match_pattern] abbrev Term.lam := abs TermKind.lam
+@[match_pattern] abbrev Term.app := tri TermKind.app
+@[match_pattern] abbrev Term.pair := bin TermKind.pair
+@[match_pattern] abbrev Term.let_pair := λk => let_bin (TermKind.let_pair k)
+@[match_pattern] abbrev Term.inj := λb => unary (TermKind.inj b)
+@[match_pattern] abbrev Term.case := λk => cases (TermKind.case k)
+@[match_pattern] abbrev Term.elem := bin TermKind.elem
+@[match_pattern] abbrev Term.let_set := λk => let_bin (TermKind.let_set k)
+@[match_pattern] abbrev Term.lam_pr := abs TermKind.lam_pr
+@[match_pattern] abbrev Term.app_pr := tri TermKind.app_pr
+@[match_pattern] abbrev Term.lam_irrel := abs TermKind.lam_irrel
+@[match_pattern] abbrev Term.app_irrel := tri TermKind.app_irrel
+@[match_pattern] abbrev Term.repr := bin TermKind.repr
+@[match_pattern] abbrev Term.let_repr := λk => let_bin (TermKind.let_repr k)
 
 -- Natural numbers
-abbrev Term.zero := const TermKind.zero
-abbrev Term.succ := const TermKind.succ
-abbrev Term.natrec (k) := nr (TermKind.natrec k)
+@[match_pattern] abbrev Term.zero := const TermKind.zero
+@[match_pattern] abbrev Term.succ := const TermKind.succ
+@[match_pattern] abbrev Term.natrec (k) := nr (TermKind.natrec k)
 abbrev Term.beta_zero := nz TermKind.beta_zero
 abbrev Term.beta_succ := nr TermKind.beta_succ
 

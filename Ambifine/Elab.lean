@@ -1,5 +1,6 @@
 import Ambifine.Surface
 import Ambifine.Untyped
+import Ambifine.UntypedToExpr
 import Lean
 open Lean Meta Elab Command
 
@@ -112,7 +113,9 @@ partial def elabErtTerm (ctx : List Name) : Syntax → CommandElabM Untyped.Term
   | `(ertTerm| $f:ertTerm ($a:term : $P:ertProp)) => do
     let f_term ← elabErtTerm ctx f
     let P_term ← elabErtProp ctx P
-    let proof ← liftTermElabM $ Term.elabTermAndSynthesize a none
+    let proof ← liftTermElabM $ do
+      let expectedType ← withCtxToLocalCtx [] [] P_term.toExpr
+      Term.elabTermAndSynthesize a (some expectedType)
     /- `app_pr` expects the type of the function to be given
     - We leave a placeholder of `unit` there so that it can be inferred later. -/
     return Untyped.Term.app_pr Untyped.Term.unit f_term (Untyped.Term.proof proof P_term)
@@ -146,7 +149,9 @@ partial def elabErtTerm (ctx : List Name) : Syntax → CommandElabM Untyped.Term
   | `(ertTerm| {$x, $p : $P}) => do
     let x_term ← elabErtTerm ctx x
     let P_term ← elabErtProp ctx P
-    let p_term ← liftTermElabM $ Term.elabTermAndSynthesize p none
+    let p_term ← liftTermElabM $ do
+      let expectedType ← withCtxToLocalCtx [] [] P_term.toExpr
+      Term.elabTermAndSynthesize p (some expectedType)
     return Untyped.Term.elem x_term (Untyped.Term.proof p_term P_term)
   | `(ertTerm| let {$a, $b} : $A = $x in $e) => do
     let A_term ← elabErtType ctx A
