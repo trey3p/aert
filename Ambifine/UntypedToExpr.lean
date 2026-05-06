@@ -117,6 +117,7 @@ def withCtxToLocalCtx (ctx : List Untyped.Term) (acc : List Expr)
     (k : List Expr → MetaM α) : MetaM α :=
   match ctx with
   | [] => k acc
-  | t :: ts => do
-    withLocalDeclD (← mkFreshUserName `x) (← t.toExpr acc) fun x =>
-      withCtxToLocalCtx ts (x :: acc) k
+  | t :: ts =>
+    withCtxToLocalCtx ts acc fun acc' => do
+      withLocalDeclD (← mkFreshUserName `x) (← t.toExpr acc') fun x =>
+        k (x :: acc')

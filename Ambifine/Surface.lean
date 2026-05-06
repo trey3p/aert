@@ -35,8 +35,8 @@ syntax "let " "(" ident ", " ident ")" ":" ertType " = " ertTerm
   " in " ertTerm : ertTerm
 syntax "inl" ertTerm : ertTerm
 syntax "inr" ertTerm : ertTerm
-syntax "cases" "[" ident ":" ertType "↦" ertType "]" ertTerm "|" "inl" ident "↦" ertTerm
-  "|" "inr" ident "↦" ertTerm : ertTerm
+syntax "cases" "[" ident ":" ertType "↦" ertType "]" ertTerm "|" "inl" "(" ident " : " ertType ")" "↦" ertTerm
+  "|" "inr" "(" ident " : " ertType ")" "↦" ertTerm : ertTerm
 syntax "λ" ident " : " ertProp " . " ertTerm : ertTerm
 syntax ertTerm "(" term " : " ertProp ")" : ertTerm
 syntax "{" ertTerm ", " term " :  " ertProp "}" : ertTerm

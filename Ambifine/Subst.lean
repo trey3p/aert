@@ -7,7 +7,7 @@ namespace Untyped
 -- The binding depth encoded in each TermKind index determines how much
 -- the cutoff grows as lift descends under binders.
 def Term.lift (cutoff shift : Nat) : Term → Term
-  | .proof _ _ => sorry
+  | .proof x y => .proof x y
   | .var v             => .var (if v < cutoff then v else v + shift)
   | .const c           => .const c
   | .unary k t         => .unary k (t.lift cutoff shift)
@@ -48,7 +48,7 @@ def Subst.lift (s : Subst) : Subst
 
 def Term.subst (e : Term) (s : Subst ) : Term :=
   match e with
-  | Term.proof _ _ => sorry
+  | Term.proof _ _ => e
   | Term.var n => s n
   | Term.const k => Term.const k
   | Term.unary k t => Term.unary k (t.subst s)
