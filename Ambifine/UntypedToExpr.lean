@@ -5,13 +5,18 @@ import Qq
 open Lean Meta Elab Term
 open Qq
 
+def succAppToNat (acc : Nat): Untyped.Term → MetaM Expr
+| Untyped.Term.zero => return q($acc)
+| Untyped.Term.app _ (Untyped.Term.succ) r => succAppToNat (acc + 1) r
+| _ => throwError "Invalid natural number"
+
 def Untyped.Term.toExpr (ctx : List Expr) : Term → MetaM Expr
 | Term.unit => return q(Unit)
 | Term.nats => return q(Nat)
 | Term.top => return q(True)
 | Term.bot => return q(False)
 | Term.nil => return q(())
-| Term.zero => return q(Nat.zero)
+| Term.zero => return q(0)
 | Term.succ => return q(Nat.succ)
 | Term.proof e _ => return e
 | Term.var v =>
@@ -66,6 +71,7 @@ def Untyped.Term.toExpr (ctx : List Expr) : Term → MetaM Expr
   withLocalDeclD (← mkFreshUserName `x) A_expr fun x => do
     let t_expr ← t.toExpr (x :: ctx)
     mkLambdaFVars #[x] t_expr
+| Term.app _ (Term.succ) r => succAppToNat 1 r
 | Term.app _ f x
 | Term.app_pr _ f x
 | Term.app_irrel _ f x => do

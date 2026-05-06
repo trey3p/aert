@@ -54,5 +54,6 @@ syntax "natrec" "[" ident "↦" ertType "]" ertTerm "|" ertTerm
 syntax "(" ertTerm ")" : ertTerm
 
 syntax "def" ident " : " ertType " := " ertTerm : ertStatement
+syntax "def" ident " : " ertProp " := " term : ertStatement
 
 syntax (name := ert) "#lang" "ERT" ertStatement+ : command

@@ -220,10 +220,14 @@ partial def elabErtTerm (ctx : List (Name × Untyped.Term)) : Syntax → Command
 end
 
 def elabErtStatement : CommandElab
-  | `(ertStatement| def $_name : $ty := $body) => do
+  | `(ertStatement| def $_name : $ty:ertType := $body) => do
     let _type ← elabErtType [] ty
     let _term ← elabErtTerm [] body
     -- Lean.logInfo m!"type: {repr type}\nterm: {repr term}"
+  | `(ertStatement| def $_name : $prop:ertProp := $body) => do
+    let prop ← elabErtProp [] prop
+    let expectedType ← liftTermElabM $ prop.toExpr []
+    let _body ← liftTermElabM $ Term.elabTermAndSynthesize body expectedType
   | _ => throwUnsupportedSyntax
 
 @[command_elab ert]
