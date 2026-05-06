@@ -114,9 +114,10 @@ partial def elabErtTerm (ctx : List (Name × Untyped.Term)) : Syntax → Command
   | `(ertTerm| $f:ertTerm ($a:term : $P:ertProp)) => do
     let f_term ← elabErtTerm ctx f
     let P_term ← elabErtProp ctx P
-    let proof ← liftTermElabM $ do
-      let expectedType ← withCtxToLocalCtx (ctx.map (·.snd)) [] P_term.toExpr
-      Term.elabTermAndSynthesize a (some expectedType)
+    let proof ← liftTermElabM $
+      withCtxToLocalCtx ctx [] fun fvars => do
+        let expectedType ← P_term.toExpr fvars
+        Term.elabTermAndSynthesize a (some expectedType)
     /- `app_pr` expects the type of the function to be given
     - We leave a placeholder of `unit` there so that it can be inferred later. -/
     return Untyped.Term.app_pr Untyped.Term.unit f_term (Untyped.Term.proof proof P_term)
@@ -134,7 +135,8 @@ partial def elabErtTerm (ctx : List (Name × Untyped.Term)) : Syntax → Command
     let xName := x.getId
     let yName := y.getId
     -- y is the inner binder (index 0), x is outer (index 1)
-    let b_term ← elabErtTerm ((yName, y_term) :: (xName, x_term) :: ctx) b
+    -- y_term was indexed relative to ctx; now x is inserted before ctx, so shift
+    let b_term ← elabErtTerm ((yName, y_term.wk1) :: (xName, x_term) :: ctx) b
     return Untyped.Term.let_pair .type A_term e_term b_term
   | `(ertTerm| inl $t) =>
     return Untyped.Term.inj (0 : Fin 2) (← elabErtTerm ctx t)
@@ -157,7 +159,8 @@ partial def elabErtTerm (ctx : List (Name × Untyped.Term)) : Syntax → Command
     let x_term ← elabErtTerm ctx x
     let P_term ← elabErtProp ctx P
     let p_term ← liftTermElabM $ do
-      let expectedType ← withCtxToLocalCtx (ctx.map (·.snd)) [] P_term.toExpr
+      withCtxToLocalCtx ctx [] fun fvars => do
+      let expectedType ← P_term.toExpr fvars
       Term.elabTermAndSynthesize p (some expectedType)
     return Untyped.Term.elem x_term (Untyped.Term.proof p_term P_term)
   | `(ertTerm| let {$a, $b} : $A = $x in $e) => do
@@ -193,7 +196,8 @@ partial def elabErtTerm (ctx : List (Name × Untyped.Term)) : Syntax → Command
     let e_term ← elabErtTerm ctx e
     let xName := x.getId
     let yName := y.getId
-    let b_term ← elabErtTerm ((yName, y_term) :: (xName, x_term) :: ctx) b
+    -- y_term was indexed relative to ctx; now x is inserted before ctx, so shift
+    let b_term ← elabErtTerm ((yName, y_term.wk1) :: (xName, x_term) :: ctx) b
     return Untyped.Term.let_repr .type A_term e_term b_term
   | `(ertTerm| $n:num) =>
     return buildNat n.getNat

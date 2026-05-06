@@ -2,7 +2,7 @@ import Ambifine.Untyped
 import Lean
 import Qq
 
-open Lean Meta
+open Lean Meta Elab Term
 open Qq
 
 def Untyped.Term.toExpr (ctx : List Expr) : Term → MetaM Expr
@@ -113,11 +113,11 @@ def Untyped.Term.toExpr (ctx : List Expr) : Term → MetaM Expr
   convert each of those into an `Expr` and then add them to the
   `LocalContext`.
 -/
-def withCtxToLocalCtx (ctx : List Untyped.Term) (acc : List Expr)
-    (k : List Expr → MetaM α) : MetaM α :=
+def withCtxToLocalCtx {α : Type} (ctx : List (Name × Untyped.Term)) (acc : List Expr)
+    (k : List Expr → TermElabM α) : TermElabM α :=
   match ctx with
   | [] => k acc
-  | t :: ts =>
+  | (name, t) :: ts =>
     withCtxToLocalCtx ts acc fun acc' => do
-      withLocalDeclD (← mkFreshUserName `x) (← t.toExpr acc') fun x =>
+      withLocalDeclD name (← t.toExpr acc') fun x =>
         k (x :: acc')
