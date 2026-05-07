@@ -35,7 +35,7 @@ def Term.wkn (n : Nat) (t : Term) : Term := t.lift 0 n
 
 -- Computable analogue of HasVar: walk the context, applying wk1 at each step
 -- so the returned type is valid in the full context (not just the tail).
-def lookupVar : Context → Nat → Option (HypKind × Term)
+def lookupVar : Ctx → Nat → Option (HypKind × Term)
   | [],     _     => none
   | h :: _, 0     => some (h.kind, h.ty.wk1)
   | _ :: Γ, n + 1 => lookupVar Γ n |>.map (fun (k, A) => (k, A.wk1))

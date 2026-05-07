@@ -13,4 +13,4 @@ structure Hyp where
 abbrev Hyp.val (A: Term) (s: AnnotSort) := Hyp.mk A (HypKind.val s)
 abbrev Hyp.gst (A: Term) := Hyp.mk A HypKind.gst
 
-def Context := List Hyp
+def Ctx := List Hyp
