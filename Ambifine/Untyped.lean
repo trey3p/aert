@@ -49,7 +49,7 @@ inductive TermKind: List Nat -> Type
   -- Consider merging with intro/elim for (sigma, type, type)
   | pair: TermKind [0, 0]
   | let_pair: AnnotSort -> TermKind [0, 0, 2]
-  | inj (b: Fin 2): TermKind [0]
+  | inj (b: Fin 2): TermKind [0, 0]
   | case: AnnotSort -> TermKind [0, 0, 1, 1]
   -- Consider merging with intro/elim for (pi, type, prop)
   | lam_pr: TermKind [0, 1]
@@ -118,7 +118,7 @@ deriving BEq, Repr
 @[match_pattern] abbrev Term.app := tri TermKind.app
 @[match_pattern] abbrev Term.pair := bin TermKind.pair
 @[match_pattern] abbrev Term.let_pair := λk => let_bin (TermKind.let_pair k)
-@[match_pattern] abbrev Term.inj := λb => unary (TermKind.inj b)
+@[match_pattern] abbrev Term.inj := λb => bin (TermKind.inj b)
 @[match_pattern] abbrev Term.case := λk => cases (TermKind.case k)
 @[match_pattern] abbrev Term.elem := bin TermKind.elem
 @[match_pattern] abbrev Term.let_set := λk => let_bin (TermKind.let_set k)

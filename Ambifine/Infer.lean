@@ -272,6 +272,7 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
     | _, _ => return none
 
   -- elem l r : term (set A (φ_r.wk1))
+  -- {x : A | φ}
   | Term.bin TermKind.elem l r => do
     match ← inferType Γ fvars l, ← inferType Γ fvars r with
     | some (.expr .type A), some (.expr .prop φ_r) =>
@@ -280,6 +281,7 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
 
   -- repr l r : term (union A (B_r.wk1))
   -- l is the ghost witness: checked under Γ.upgrade
+  -- ∪ x : A, B x
   | Term.bin TermKind.repr l r => do
     match ← inferType (Ctx.upgrade Γ) fvars l, ← inferType Γ fvars r with
     | some (.expr .type A), some (.expr .type B_r) =>
@@ -339,14 +341,58 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
       | _ => return none
     | _ => return none
 
+  -- ── Coproduct introduction ────────────────────────────────────────────────
+
+  -- inj 0 B t : coprod T B  when t : T  (inl, annotated with right type B)
+  -- inj 1 A t : coprod A T  when t : T  (inr, annotated with left type A)
+  | Term.bin (TermKind.inj b) annot t => do
+    match ← inferType Γ fvars annot with
+    | some (.sort .type) =>
+      match ← inferType Γ fvars t with
+      | some (.expr .type T) =>
+        if b.val == 0 then
+          return some (.expr .type (Term.bin TermKind.coprod T annot))
+        else
+          return some (.expr .type (Term.bin TermKind.coprod annot T))
+      | _ => return none
+    | _ => return none
+
+  -- ── Coproduct elimination ─────────────────────────────────────────────────
+
+  -- case .type (lam D C) d l r : C.subst0 d
+  --   d : coprod A B
+  --   l in (val A .type :: Γ) : C.alpha0 (inl (var 0))   (left branch)
+  --   r in (val B .type :: Γ) : C.alpha0 (inr (var 0))   (right branch)
+  -- A and B come from d's inferred type; the motive body C is extracted from K.
+  -- B.wk1 / A.wk1 shift the annotation into the branch context.
+  | Term.cases (TermKind.case .type) K d l r => do
+    match ← inferType Γ fvars d with
+    | some (.expr .type (Term.bin TermKind.coprod A B)) =>
+      match K with
+      | Term.abs TermKind.lam _ C =>
+        let A_expr ← A.toExpr fvars
+        let B_expr ← B.toExpr fvars
+        let l_ty := C.alpha0 (Term.bin (TermKind.inj (0 : Fin 2)) B.wk1 (Term.var 0))
+        let r_ty := C.alpha0 (Term.bin (TermKind.inj (1 : Fin 2)) A.wk1 (Term.var 0))
+        let l_result ← withLocalDeclD (← mkFreshUserName `x) A_expr fun x_fvar =>
+          inferType (Hyp.val A .type :: Γ) (x_fvar :: fvars) l
+        let r_result ← withLocalDeclD (← mkFreshUserName `y) B_expr fun y_fvar =>
+          inferType (Hyp.val B .type :: Γ) (y_fvar :: fvars) r
+        match l_result, r_result with
+        | some (.expr .type l_ty'), some (.expr .type r_ty') =>
+          if l_ty' == l_ty && r_ty' == r_ty then
+            return some (.expr .type (C.subst0 d))
+          else return none
+        | _, _ => return none
+      | _ => return none
+    | _ => return none
+
   -- ── Not inferrable without annotation ────────────────────────────────────
-  -- abort           : return type is arbitrary, no annotation in term
-  -- inj b / disj b  : need the other branch type
-  -- case / case_pr  : motive C not carried in the term
-  -- let_bin forms   : motive C not carried in the term
-  -- natrec prop     : requires Γ.upgrade (not implemented)
-  -- ir forms        : equality proofs (trans, cong, prir, …)
-  -- nz forms        : beta-reduction proofs
+  -- abort         : return type is arbitrary, no annotation in term
+  -- let_bin forms : motive C not carried in the term
+  -- ir forms      : equality proofs (trans, cong, prir, …)
+  -- nz forms      : beta-reduction proofs
+  -- natrec prop   : requires Γ.upgrade (not implemented)
   | _ => return none
 
 end Untyped

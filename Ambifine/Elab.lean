@@ -138,10 +138,10 @@ partial def elabErtTerm (ctx : List (Name × Untyped.Term)) : Syntax → Command
     -- y_term was indexed relative to ctx; now x is inserted before ctx, so shift
     let b_term ← elabErtTerm ((yName, y_term.wk1) :: (xName, x_term) :: ctx) b
     return Untyped.Term.let_pair .type A_term e_term b_term
-  | `(ertTerm| inl $t) =>
-    return Untyped.Term.inj (0 : Fin 2) (← elabErtTerm ctx t)
-  | `(ertTerm| inr $t) =>
-    return Untyped.Term.inj (1 : Fin 2) (← elabErtTerm ctx t)
+  | `(ertTerm| inl $t : $B:ertType) => do
+    return Untyped.Term.inj (0 : Fin 2) (← elabErtType ctx B) (← elabErtTerm ctx t)
+  | `(ertTerm| inr $t : $A:ertType) => do
+    return Untyped.Term.inj (1 : Fin 2) (← elabErtType ctx A) (← elabErtTerm ctx t)
   | `(ertTerm| cases [$x : $D ↦ $C] $d |inl ($xl : $A) ↦ $l |inr ($xr : $B) ↦ $r) => do
     let xName := x.getId
     let D_term ← elabErtType ctx D

@@ -87,7 +87,7 @@ def Untyped.Term.toExpr (ctx : List Expr) : Term → MetaM Expr
   let l_expr ← l.toExpr ctx
   let r_expr ← r.toExpr ctx
   mkAppM ``Subtype.mk #[l_expr, r_expr]
-| Term.inj b t => do
+| Term.bin (TermKind.inj b) _ t => do
   let t_expr ← t.toExpr ctx
   if b.val == 0 then
     mkAppM ``Sum.inl #[t_expr]
