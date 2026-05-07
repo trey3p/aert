@@ -15,8 +15,13 @@ inductive Annot where
 
 -- inferType mirrors HasType as a decision procedure.
 -- Deviations from old-ert's HasType:
---   - Context upgrade (Γ.upgrade) is not applied; ghost-context checks use Γ.
 --   - inj, disj, abort, case, let_bin, ir, nz: not inferrable (see bottom).
+
+/--
+inferType Γ fvars e returns some annotation for e if it can be inferred to be well-typed in Γ, and none otherwise.
+Γ is a context within the aert type theory, fvars is a list of free variables corresponding to the conversion of Γ to lean.
+e is a term withing the aert type theory.
+--/
 def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :=
   match e with
   | Term.proof k p => do
@@ -229,10 +234,11 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
     | _ => return none
 
   -- app_irrel (intersect A B) l r : term (B.subst0 r)
+  -- r is a ghost argument: checked under Γ.upgrade
   | Term.tri TermKind.app_irrel _ l r => do
     match ← inferType Γ fvars l with
     | some (.expr .type (Term.abs TermKind.intersect A B)) =>
-      match ← inferType Γ fvars r with
+      match ← inferType (Ctx.upgrade Γ) fvars r with
       | some (.expr .type A') =>
           if A == A' then return some (.expr .type (B.subst0 r)) else return none
       | _ => return none
@@ -273,9 +279,9 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
     | _, _ => return none
 
   -- repr l r : term (union A (B_r.wk1))
-  -- Note: old-ert checks l in Γ.upgrade; we check l in Γ (sound over-approx).
+  -- l is the ghost witness: checked under Γ.upgrade
   | Term.bin TermKind.repr l r => do
-    match ← inferType Γ fvars l, ← inferType Γ fvars r with
+    match ← inferType (Ctx.upgrade Γ) fvars l, ← inferType Γ fvars r with
     | some (.expr .type A), some (.expr .type B_r) =>
         return some (.expr .type (Term.abs TermKind.union A B_r.wk1))
     | _, _ => return none
@@ -319,7 +325,7 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
                               (Term.abs TermKind.pi Term.nats Term.nats)
                               Term.succ (Term.var 1)
             let step_ty  := (C.lift 1 1).alpha0 succ_app
-            let step_ctx := Hyp.val C .type :: Hyp.val Term.nats .type :: Γ
+            let step_ctx := Hyp.val C .type :: Hyp.gst Term.nats :: Γ
             let res_s ← withLocalDeclD (← mkFreshUserName `n) nats_expr fun n_fvar => do
               let C_n ← C.toExpr (n_fvar :: fvars)
               withLocalDeclD (← mkFreshUserName `ih) C_n fun ih_fvar =>
