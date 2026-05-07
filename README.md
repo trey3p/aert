@@ -1,8 +1,10 @@
 # aert - automated explicit refinement types
-There are three advantages to having explicit refinement types with automation:
+There are advantages to having explicit refinement types with automation:
  * Allows user input and help to get to decidable theories.
  * Eliminates solvers and other algorithms (like liquid typing) from the trusted code base.
  * When used with solvers that produce proofs, explicit refinement types eliminate expensive runtime checks by running automation once and storing the generated proof for later.
+* Some properties require quantifiers to be stated naturally. aert allows you to state these properties naturally and then use automation and proving to prove them. Tools like Liquid Haskell typically require users to state properties in a restricted fragment of FOL.
+* Enables reuse of previous theorems and allows proofs by induction.
 
 ## Theories that aer can handle
   * Reducing to EPR Class : given a formula ∀ ∃ ∀ the user can provide existential witnesses to get the theory within EPR (∃ ∀ ).
