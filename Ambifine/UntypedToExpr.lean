@@ -136,3 +136,13 @@ def withCtxToLocalCtx {α : Type} (env : List Statement) (ctx : List (Name × Un
     withCtxToLocalCtx env ts acc fun acc' => do
       withLocalDeclD name (← t.toExpr env acc') fun x =>
         k (x :: acc')
+
+/-- Variant that does not require names to be given.  -/
+def withCtxToLocalCtx' {α : Type} (env : List Statement) (ctx : List Untyped.Term) (acc : List Expr)
+    (k : List Expr → TermElabM α) : TermElabM α :=
+  match ctx with
+  | [] => k acc
+  | t :: ts =>
+    withCtxToLocalCtx' env ts acc fun acc' => do
+      withLocalDeclD (← mkFreshUserName `x) (← t.toExpr env acc') fun x =>
+        k (x :: acc')
