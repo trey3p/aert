@@ -230,10 +230,11 @@ def elabErtStatement (env : List Statement) : Syntax → CommandElabM Statement
   | `(ertStatement| def $name : $ty:ertType := $body) => do
     let annot@(.expr _ type) ← elabErtType env [] ty | throwErrorAt ty "expected a type"
     let term ← elabErtTerm env [] body
-    if ← liftTermElabM $ Check.check env term annot then
+    try
+      liftTermElabM $ Check.check env term annot
       return .defn name.getId type term
-    else
-      throwErrorAt name "does not typecheck"
+    catch msg =>
+      throwErrorAt name msg.toMessageData
     -- Lean.logInfo m!"type: {repr type}\nterm: {repr term}"
   | `(ertStatement| def $name : $prop:ertProp := $body) => do
     let .expr _ prop ← elabErtProp env [] prop | throwErrorAt prop "expected prop expression"
