@@ -15,7 +15,39 @@ inductive Annot where
 
 -- inferType mirrors HasType as a decision procedure.
 -- Deviations from old-ert's HasType:
---   - inj, disj, abort, case, let_bin, ir, nz: not inferrable (see bottom).
+--   - abort, ir, nz: not inferrable (see bottom).
+
+-- Remove the outermost `n` binders from a type that lives in an n-deeper context.
+-- Returns none if the term references any of the n dropped variables (i.e. the
+-- elimination is dependent and we cannot compute the result type without a motive).
+private def dropBinders : (depth n : Nat) → Term → Option Term
+  | d, n, .proof e ty => (.proof e) <$> dropBinders d n ty
+  | d, n, .var v =>
+      if v < d then some (.var v)
+      else if v < d + n then none
+      else some (.var (v - n))
+  | _, _, .const c => some (.const c)
+  | d, n, .unary k t => .unary k <$> dropBinders d n t
+  | d, n, .bin k l r => return .bin k (← dropBinders d n l) (← dropBinders d n r)
+  | d, n, .abs k A body =>
+      return .abs k (← dropBinders d n A) (← dropBinders (d + 1) n body)
+  | d, n, .tri k A l r =>
+      return .tri k (← dropBinders d n A) (← dropBinders d n l) (← dropBinders d n r)
+  | d, n, .ir k x y P =>
+      return .ir k (← dropBinders d n x) (← dropBinders d n y) (← dropBinders (d + 1) n P)
+  | d, n, .cases k K disc l r =>
+      return .cases k (← dropBinders d n K) (← dropBinders d n disc)
+                      (← dropBinders (d + 1) n l) (← dropBinders (d + 1) n r)
+  | d, n, .let_bin k P e e' =>
+      return .let_bin k (← dropBinders d n P) (← dropBinders d n e) (← dropBinders (d + 2) n e')
+  | d, n, .let_bin_beta k P l r e' =>
+      return .let_bin_beta k (← dropBinders d n P) (← dropBinders d n l)
+                             (← dropBinders d n r) (← dropBinders (d + 2) n e')
+  | d, n, .nr k K e z s =>
+      return .nr k (← dropBinders (d + 1) n K) (← dropBinders d n e)
+                   (← dropBinders d n z) (← dropBinders (d + 2) n s)
+  | d, n, .nz k K z s =>
+      return .nz k (← dropBinders (d + 1) n K) (← dropBinders d n z) (← dropBinders (d + 2) n s)
 
 /--
 inferType Γ fvars e returns some annotation for e if it can be inferred to be well-typed in Γ, and none otherwise.
@@ -387,12 +419,73 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
       | _ => return none
     | _ => return none
 
+  -- ── Dependent pair / set / union eliminations ────────────────────────────
+  -- P carries the type of e; the body context adds two binders (inner first):
+  --   let_pair  P = sigma A B :  var 0 = y : B.wk1,  var 1 = x : A
+  --   let_set   P = set A φ   :  var 0 = h : φ.wk1,  var 1 = x : A
+  --   let_repr  P = union A B :  var 0 = y : B.wk1,  var 1 = x : A (ghost)
+  -- The return type is inferred from e' and `dropBinders 0 2` removes the two
+  -- extra binders.  Returns none if e' has a dependent return type (uses var 0/1).
+
+  | Term.let_bin (TermKind.let_pair .type) P e e' => do
+    match P with
+    | Term.abs TermKind.sigma A B =>
+      match ← inferType Γ fvars e with
+      | some (.expr .type P') =>
+        if P' != P then return none
+        let A_expr ← A.toExpr fvars
+        withLocalDeclD (← mkFreshUserName `x) A_expr fun x_fvar => do
+          let B_x ← B.toExpr (x_fvar :: fvars)
+          withLocalDeclD (← mkFreshUserName `y) B_x fun y_fvar => do
+            match ← inferType (Hyp.val B.wk1 .type :: Hyp.val A .type :: Γ)
+                               (y_fvar :: x_fvar :: fvars) e' with
+            | some (.expr .type T_ext) =>
+              return (dropBinders 0 2 T_ext).map (.expr .type)
+            | _ => return none
+      | _ => return none
+    | _ => return none
+
+  | Term.let_bin (TermKind.let_set .type) P e e' => do
+    match P with
+    | Term.abs TermKind.set A φ =>
+      match ← inferType Γ fvars e with
+      | some (.expr .type P') =>
+        if P' != P then return none
+        let A_expr ← A.toExpr fvars
+        withLocalDeclD (← mkFreshUserName `x) A_expr fun x_fvar => do
+          let φ_x ← φ.toExpr (x_fvar :: fvars)
+          withLocalDeclD (← mkFreshUserName `h) φ_x fun h_fvar => do
+            match ← inferType (Hyp.val φ.wk1 .prop :: Hyp.val A .type :: Γ)
+                               (h_fvar :: x_fvar :: fvars) e' with
+            | some (.expr .type T_ext) =>
+              return (dropBinders 0 2 T_ext).map (.expr .type)
+            | _ => return none
+      | _ => return none
+    | _ => return none
+
+  | Term.let_bin (TermKind.let_repr .type) P e e' => do
+    match P with
+    | Term.abs TermKind.union A B =>
+      match ← inferType Γ fvars e with
+      | some (.expr .type P') =>
+        if P' != P then return none
+        let A_expr ← A.toExpr fvars
+        withLocalDeclD (← mkFreshUserName `x) A_expr fun x_fvar => do
+          let B_x ← B.toExpr (x_fvar :: fvars)
+          withLocalDeclD (← mkFreshUserName `y) B_x fun y_fvar => do
+            match ← inferType (Hyp.val B.wk1 .type :: Hyp.gst A :: Γ)
+                               (y_fvar :: x_fvar :: fvars) e' with
+            | some (.expr .type T_ext) =>
+              return (dropBinders 0 2 T_ext).map (.expr .type)
+            | _ => return none
+      | _ => return none
+    | _ => return none
+
   -- ── Not inferrable without annotation ────────────────────────────────────
-  -- abort         : return type is arbitrary, no annotation in term
-  -- let_bin forms : motive C not carried in the term
-  -- ir forms      : equality proofs (trans, cong, prir, …)
-  -- nz forms      : beta-reduction proofs
-  -- natrec prop   : requires Γ.upgrade (not implemented)
+  -- abort       : return type is arbitrary, no annotation in term
+  -- ir forms    : equality proofs (trans, cong, prir, …)
+  -- nz forms    : beta-reduction proofs
+  -- natrec prop : requires Γ.upgrade (not implemented)
   | _ => return none
 
 end Untyped
