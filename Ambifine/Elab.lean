@@ -129,19 +129,17 @@ partial def elabErtTerm (ctx : List (Name × Untyped.Term)) : Syntax → Command
     let A_term ← elabErtType ctx A
     let (x_term, y_term) ←
       match A_term with
-      | Untyped.Term.coprod x_term y_term => pure (x_term, y_term)
+      | Untyped.Term.sigma x_term y_term => pure (x_term, y_term)
       | _ => throwErrorAt A "invalid type in let-pair"
     let e_term ← elabErtTerm ctx e
     let xName := x.getId
     let yName := y.getId
-    -- y is the inner binder (index 0), x is outer (index 1)
-    -- y_term was indexed relative to ctx; now x is inserted before ctx, so shift
-    let b_term ← elabErtTerm ((yName, y_term.wk1) :: (xName, x_term) :: ctx) b
+    let b_term ← elabErtTerm ((yName, y_term) :: (xName, x_term) :: ctx) b
     return Untyped.Term.let_pair .type A_term e_term b_term
-  | `(ertTerm| inl $t : $B:ertType) => do
-    return Untyped.Term.inj (0 : Fin 2) (← elabErtType ctx B) (← elabErtTerm ctx t)
-  | `(ertTerm| inr $t : $A:ertType) => do
-    return Untyped.Term.inj (1 : Fin 2) (← elabErtType ctx A) (← elabErtTerm ctx t)
+  | `(ertTerm| (inl $t) : $AB:ertType) => do
+    return Untyped.Term.inj (0 : Fin 2) (← elabErtType ctx AB) (← elabErtTerm ctx t)
+  | `(ertTerm| (inr $t) : $AB:ertType) => do
+    return Untyped.Term.inj (1 : Fin 2) (← elabErtType ctx AB) (← elabErtTerm ctx t)
   | `(ertTerm| cases [$x : $D ↦ $C] $d |inl ($xl : $A) ↦ $l |inr ($xr : $B) ↦ $r) => do
     let xName := x.getId
     let D_term ← elabErtType ctx D
@@ -191,13 +189,12 @@ partial def elabErtTerm (ctx : List (Name × Untyped.Term)) : Syntax → Command
     let A_term ← elabErtType ctx A
     let (x_term, y_term) ←
       match A_term with
-      | Untyped.Term.repr x_term y_term => pure (x_term, y_term)
+      | Untyped.Term.union x_term y_term => pure (x_term, y_term)
       | _ => throwErrorAt A "invalid type of let-repr"
     let e_term ← elabErtTerm ctx e
     let xName := x.getId
     let yName := y.getId
-    -- y_term was indexed relative to ctx; now x is inserted before ctx, so shift
-    let b_term ← elabErtTerm ((yName, y_term.wk1) :: (xName, x_term) :: ctx) b
+    let b_term ← elabErtTerm ((yName, y_term) :: (xName, x_term) :: ctx) b
     return Untyped.Term.let_repr .type A_term e_term b_term
   | `(ertTerm| $n:num) =>
     return buildNat n.getNat
@@ -210,9 +207,7 @@ partial def elabErtTerm (ctx : List (Name × Untyped.Term)) : Syntax → Command
     let z_term ← elabErtTerm ctx z
     let xsName := xs.getId
     let xpName := xp.getId
-    -- xp is the inner binder (IH, index 0), xs is outer (predecessor, index 1)
-    -- wk1 shifts all vars by 1: x (var 0 in K) → xs (var 1 in step ctx), ctx[i] → var (i+2)
-    let s_term ← elabErtTerm ((xpName, K_term.wk1) :: (xsName, Untyped.Term.nats) :: ctx) s
+    let s_term ← elabErtTerm ((xpName, K_term) :: (xsName, Untyped.Term.nats) :: ctx) s
     return Untyped.Term.natrec .type K_term e_term z_term s_term
   | `(ertTerm| ($t)) => elabErtTerm ctx t
   | stx => throwErrorAt stx "Unsupported ERT term: {stx}"

@@ -73,6 +73,8 @@ inductive TermKind: List Nat -> Type
   | beta_succ: TermKind [1, 0, 0, 2]
 
   | eq: TermKind [0, 0, 0]
+
+  | definition (name : Lean.Name) : TermKind []
 deriving BEq, Repr
 
 inductive Term: Type
