@@ -53,6 +53,10 @@ private def dropBinders : (depth n : Nat) → Term → Option Term
 inferType Γ fvars e returns some annotation for e if it can be inferred to be well-typed in Γ, and none otherwise.
 Γ is a context within the aert type theory, fvars is a list of free variables corresponding to the conversion of Γ to lean.
 e is a term withing the aert type theory.
+Invariant:
+  fvars[i] is always a valid fvar in the current MetaM local context.
+  This requires the initkal fvars passed to inferType to be created by the caller's withLocalDeclD, and
+  every extension to fvars in inferType to happen within a withLocalDeclD.
 --/
 def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :=
   match e with
