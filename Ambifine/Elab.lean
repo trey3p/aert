@@ -170,7 +170,8 @@ partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → Com
     let p_term ← liftTermElabM $ do
       withCtxToLocalCtx env ctx [] fun fvars => do
       let expectedType ← P_term.toExpr env fvars
-      Term.elabTermAndSynthesize p (some expectedType)
+      let proof ← Term.elabTermAndSynthesize p (some expectedType)
+      mkLambdaFVars fvars.toArray proof
     return Untyped.Term.elem x_term (Untyped.Term.proof p_term P_term)
   | `(ertTerm| let {$a, $b} : $A = $x in $e) => do
     let .expr _ A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"

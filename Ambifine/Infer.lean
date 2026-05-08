@@ -63,7 +63,7 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM (Opti
   match e with
   | Term.proof k p => do
     let p_expr ← p.toExpr ρ fvars
-    let k_ty ← Meta.inferType k
+    let k_ty ← Meta.inferType (mkAppN k fvars.toArray)
     if ← isDefEq k_ty p_expr then
       return some (.expr .prop p)
     else
