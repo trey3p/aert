@@ -7,7 +7,7 @@ open Qq
 
 inductive Statement where
 | defn (name : Name) (type : Untyped.Term) (term : Untyped.Term)
-| thm (name : Name) (type : Expr) (proof : Expr)
+| thm (name : Name) (type : Untyped.Term) (proof : Expr)
 deriving BEq
 
 def Statement.name : Statement → Name

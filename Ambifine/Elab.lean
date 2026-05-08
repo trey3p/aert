@@ -231,7 +231,7 @@ def elabErtStatement (env : List Statement) : Syntax → CommandElabM Statement
     let expectedType ← liftTermElabM $ prop.toExpr env []
     let body ← liftTermElabM $ Term.elabTermAndSynthesize body expectedType
     if ← liftTermElabM $ isDefEq expectedType (← liftTermElabM $ inferType body) then
-      return .thm name.getId expectedType body
+      return .thm name.getId prop body
     else
       throwErrorAt name "invalid proof"
   | _ => throwUnsupportedSyntax
