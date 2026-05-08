@@ -473,8 +473,8 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
             match ← inferType (Hyp.val φ.wk1 .prop :: Hyp.val A .type :: Γ)
                                ρ (h_fvar :: x_fvar :: fvars) e' with
             | .expr .type T_ext =>
-              match dropBinders 0 2 T_ext with
-              | some T => return .expr .type T
+              match dropBinders 0 1 T_ext with
+              | some T => return .expr .type (T.subst0 e)
               | none => throwError m!"let_set: body has a dependent return type"
             | a => throwError m!"let_set: body {repr e'} must have a type, got {repr a}"
       | a => throwError m!"let_set: scrutinee {repr e} must have a type, got {repr a}"
