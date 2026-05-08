@@ -19,6 +19,8 @@ def succAppToNat (acc : Nat): Untyped.Term → MetaM Expr
 | Untyped.Term.app _ (Untyped.Term.succ) r => succAppToNat (acc + 1) r
 | _ => throwError "Invalid natural number"
 
+abbrev Env := List Statement
+
 def Untyped.Term.toExpr (env : List Statement) (ctx : List Expr) : Term → MetaM Expr
 | Term.unit => return q(Unit)
 | Term.nats => return q(Nat)

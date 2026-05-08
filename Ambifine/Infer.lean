@@ -58,10 +58,10 @@ Invariant:
   This requires the initkal fvars passed to inferType to be created by the caller's withLocalDeclD, and
   every extension to fvars in inferType to happen within a withLocalDeclD.
 --/
-def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :=
+def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :=
   match e with
   | Term.proof k p => do
-    let p_expr ← p.toExpr fvars
+    let p_expr ← p.toExpr ρ fvars
     let k_ty ← Meta.inferType k
     if ← isDefEq k_ty p_expr then
       return some (.expr .prop p)
@@ -88,124 +88,124 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
   -- ── Type formers ──────────────────────────────────────────────────────────
 
   | Term.abs TermKind.pi A B => do
-    match ← inferType Γ fvars A with
+    match ← inferType Γ ρ fvars A with
     | some (.sort .type) =>
-      let A_expr ← A.toExpr fvars
+      let A_expr ← A.toExpr ρ fvars
       let res ← withLocalDeclD (← mkFreshUserName `x) A_expr fun x =>
-        inferType (Hyp.val A .type :: Γ) (x :: fvars) B
+        inferType (Hyp.val A .type :: Γ) ρ (x :: fvars) B
       match res with
       | some (.sort .type) => return some (.sort .type)
       | _ => return none
     | _ => return none
 
   | Term.abs TermKind.sigma A B => do
-    match ← inferType Γ fvars A with
+    match ← inferType Γ ρ fvars A with
     | some (.sort .type) =>
-      let A_expr ← A.toExpr fvars
+      let A_expr ← A.toExpr ρ fvars
       let res ← withLocalDeclD (← mkFreshUserName `x) A_expr fun x =>
-        inferType (Hyp.val A .type :: Γ) (x :: fvars) B
+        inferType (Hyp.val A .type :: Γ) ρ (x :: fvars) B
       match res with
       | some (.sort .type) => return some (.sort .type)
       | _ => return none
     | _ => return none
 
   | Term.abs TermKind.set A B => do
-    match ← inferType Γ fvars A with
+    match ← inferType Γ ρ fvars A with
     | some (.sort .type) =>
-      let A_expr ← A.toExpr fvars
+      let A_expr ← A.toExpr ρ fvars
       let res ← withLocalDeclD (← mkFreshUserName `x) A_expr fun x =>
-        inferType (Hyp.val A .type :: Γ) (x :: fvars) B
+        inferType (Hyp.val A .type :: Γ) ρ (x :: fvars) B
       match res with
       | some (.sort .prop) => return some (.sort .type)
       | _ => return none
     | _ => return none
 
   | Term.abs TermKind.assume φ A => do
-    match ← inferType Γ fvars φ with
+    match ← inferType Γ ρ fvars φ with
     | some (.sort .prop) =>
-      let φ_expr ← φ.toExpr fvars
+      let φ_expr ← φ.toExpr ρ fvars
       let res ← withLocalDeclD (← mkFreshUserName `x) φ_expr fun x =>
-        inferType (Hyp.val φ .prop :: Γ) (x :: fvars) A
+        inferType (Hyp.val φ .prop :: Γ) ρ (x :: fvars) A
       match res with
       | some (.sort .type) => return some (.sort .type)
       | _ => return none
     | _ => return none
 
   | Term.abs TermKind.intersect A B => do
-    match ← inferType Γ fvars A with
+    match ← inferType Γ ρ fvars A with
     | some (.sort .type) =>
-      let A_expr ← A.toExpr fvars
+      let A_expr ← A.toExpr ρ fvars
       let res ← withLocalDeclD (← mkFreshUserName `x) A_expr fun x =>
-        inferType (Hyp.gst A :: Γ) (x :: fvars) B
+        inferType (Hyp.gst A :: Γ) ρ (x :: fvars) B
       match res with
       | some (.sort .type) => return some (.sort .type)
       | _ => return none
     | _ => return none
 
   | Term.abs TermKind.union A B => do
-    match ← inferType Γ fvars A with
+    match ← inferType Γ ρ fvars A with
     | some (.sort .type) =>
-      let A_expr ← A.toExpr fvars
+      let A_expr ← A.toExpr ρ fvars
       let res ← withLocalDeclD (← mkFreshUserName `x) A_expr fun x =>
-        inferType (Hyp.gst A :: Γ) (x :: fvars) B
+        inferType (Hyp.gst A :: Γ) ρ (x :: fvars) B
       match res with
       | some (.sort .type) => return some (.sort .type)
       | _ => return none
     | _ => return none
 
   | Term.bin TermKind.coprod A B => do
-    match ← inferType Γ fvars A, ← inferType Γ fvars B with
+    match ← inferType Γ ρ fvars A, ← inferType Γ ρ fvars B with
     | some (.sort .type), some (.sort .type) => return some (.sort .type)
     | _, _ => return none
 
   -- ── Proposition formers ───────────────────────────────────────────────────
 
   | Term.abs TermKind.dand φ ψ => do
-    match ← inferType Γ fvars φ with
+    match ← inferType Γ ρ fvars φ with
     | some (.sort .prop) =>
-      let φ_expr ← φ.toExpr fvars
+      let φ_expr ← φ.toExpr ρ fvars
       let res ← withLocalDeclD (← mkFreshUserName `x) φ_expr fun x =>
-        inferType (Hyp.val φ .prop :: Γ) (x :: fvars) ψ
+        inferType (Hyp.val φ .prop :: Γ) ρ (x :: fvars) ψ
       match res with
       | some (.sort .prop) => return some (.sort .prop)
       | _ => return none
     | _ => return none
 
   | Term.abs TermKind.dimplies φ ψ => do
-    match ← inferType Γ fvars φ with
+    match ← inferType Γ ρ fvars φ with
     | some (.sort .prop) =>
-      let φ_expr ← φ.toExpr fvars
+      let φ_expr ← φ.toExpr ρ fvars
       let res ← withLocalDeclD (← mkFreshUserName `x) φ_expr fun x =>
-        inferType (Hyp.val φ .prop :: Γ) (x :: fvars) ψ
+        inferType (Hyp.val φ .prop :: Γ) ρ (x :: fvars) ψ
       match res with
       | some (.sort .prop) => return some (.sort .prop)
       | _ => return none
     | _ => return none
 
   | Term.abs TermKind.forall_ A φ => do
-    match ← inferType Γ fvars A with
+    match ← inferType Γ ρ fvars A with
     | some (.sort .type) =>
-      let A_expr ← A.toExpr fvars
+      let A_expr ← A.toExpr ρ fvars
       let res ← withLocalDeclD (← mkFreshUserName `x) A_expr fun x =>
-        inferType (Hyp.val A .type :: Γ) (x :: fvars) φ
+        inferType (Hyp.val A .type :: Γ) ρ (x :: fvars) φ
       match res with
       | some (.sort .prop) => return some (.sort .prop)
       | _ => return none
     | _ => return none
 
   | Term.abs TermKind.exists_ A φ => do
-    match ← inferType Γ fvars A with
+    match ← inferType Γ ρ fvars A with
     | some (.sort .type) =>
-      let A_expr ← A.toExpr fvars
+      let A_expr ← A.toExpr ρ fvars
       let res ← withLocalDeclD (← mkFreshUserName `x) A_expr fun x =>
-        inferType (Hyp.val A .type :: Γ) (x :: fvars) φ
+        inferType (Hyp.val A .type :: Γ) ρ (x :: fvars) φ
       match res with
       | some (.sort .prop) => return some (.sort .prop)
       | _ => return none
     | _ => return none
 
   | Term.bin TermKind.or φ ψ => do
-    match ← inferType Γ fvars φ, ← inferType Γ fvars ψ with
+    match ← inferType Γ ρ fvars φ, ← inferType Γ ρ fvars ψ with
     | some (.sort .prop), some (.sort .prop) => return some (.sort .prop)
     | _, _ => return none
 
@@ -213,11 +213,11 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
 
   -- lam A s : pi A B  when s : B in (A :: Γ)
   | Term.abs TermKind.lam A s => do
-    match ← inferType Γ fvars A with
+    match ← inferType Γ ρ fvars A with
     | some (.sort .type) =>
-      let A_expr ← A.toExpr fvars
+      let A_expr ← A.toExpr ρ fvars
       let res ← withLocalDeclD (← mkFreshUserName `x) A_expr fun x =>
-        inferType (Hyp.val A .type :: Γ) (x :: fvars) s
+        inferType (Hyp.val A .type :: Γ) ρ (x :: fvars) s
       match res with
       | some (.expr .type B) => return some (.expr .type (Term.abs TermKind.pi A B))
       | _ => return none
@@ -225,11 +225,11 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
 
   -- lam_pr φ s : assume φ A  when s : A in (φ :: Γ)
   | Term.abs TermKind.lam_pr φ s => do
-    match ← inferType Γ fvars φ with
+    match ← inferType Γ ρ fvars φ with
     | some (.sort .prop) =>
-      let φ_expr ← φ.toExpr fvars
+      let φ_expr ← φ.toExpr ρ fvars
       let res ← withLocalDeclD (← mkFreshUserName `x) φ_expr fun x =>
-        inferType (Hyp.val φ .prop :: Γ) (x :: fvars) s
+        inferType (Hyp.val φ .prop :: Γ) ρ (x :: fvars) s
       match res with
       | some (.expr .type A) => return some (.expr .type (Term.abs TermKind.assume φ A))
       | _ => return none
@@ -237,11 +237,11 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
 
   -- lam_irrel A s : intersect A B  when s : B in (‖A‖ :: Γ)
   | Term.abs TermKind.lam_irrel A s => do
-    match ← inferType Γ fvars A with
+    match ← inferType Γ ρ fvars A with
     | some (.sort .type) =>
-      let A_expr ← A.toExpr fvars
+      let A_expr ← A.toExpr ρ fvars
       let res ← withLocalDeclD (← mkFreshUserName `x) A_expr fun x =>
-        inferType (Hyp.gst A :: Γ) (x :: fvars) s
+        inferType (Hyp.gst A :: Γ) ρ (x :: fvars) s
       match res with
       | some (.expr .type B) => return some (.expr .type (Term.abs TermKind.intersect A B))
       | _ => return none
@@ -251,9 +251,9 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
 
   -- app (pi A B) f x : term (B.subst0 x)
   | Term.app _ f x => do
-    match ← inferType Γ fvars f with
+    match ← inferType Γ ρ fvars f with
     | some (.expr .type (Term.abs TermKind.pi A B)) =>
-      match ← inferType Γ fvars x with
+      match ← inferType Γ ρ fvars x with
       | some (.expr .type A') =>
           if A == A' then return some (.expr .type (B.subst0 x)) else return none
       | _ => return none
@@ -261,9 +261,9 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
 
   -- app_pr (assume φ A) l r : term (A.subst0 r)
   | Term.tri TermKind.app_pr _ l r => do
-    match ← inferType Γ fvars l with
+    match ← inferType Γ ρ fvars l with
     | some (.expr .type (Term.abs TermKind.assume φ A)) =>
-      match ← inferType Γ fvars r with
+      match ← inferType Γ ρ fvars r with
       | some (.expr .prop φ') =>
           if φ == φ' then return some (.expr .type (A.subst0 r)) else return none
       | _ => return none
@@ -272,9 +272,9 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
   -- app_irrel (intersect A B) l r : term (B.subst0 r)
   -- r is a ghost argument: checked under Γ.upgrade
   | Term.tri TermKind.app_irrel _ l r => do
-    match ← inferType Γ fvars l with
+    match ← inferType Γ ρ fvars l with
     | some (.expr .type (Term.abs TermKind.intersect A B)) =>
-      match ← inferType (Ctx.upgrade Γ) fvars r with
+      match ← inferType (Ctx.upgrade Γ) ρ fvars r with
       | some (.expr .type A') =>
           if A == A' then return some (.expr .type (B.subst0 r)) else return none
       | _ => return none
@@ -302,7 +302,7 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
 
   -- pair l r : term (sigma A (B_r.wk1))
   | Term.bin TermKind.pair l r => do
-    match ← inferType Γ fvars l, ← inferType Γ fvars r with
+    match ← inferType Γ ρ fvars l, ← inferType Γ ρ fvars r with
     | some (.expr .type A), some (.expr .type B_r) =>
         return some (.expr .type (Term.abs TermKind.sigma A B_r.wk1))
     | _, _ => return none
@@ -310,7 +310,7 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
   -- elem l r : term (set A (φ_r.wk1))
   -- {x : A | φ}
   | Term.bin TermKind.elem l r => do
-    match ← inferType Γ fvars l, ← inferType Γ fvars r with
+    match ← inferType Γ ρ fvars l, ← inferType Γ ρ fvars r with
     | some (.expr .type A), some (.expr .prop φ_r) =>
         return some (.expr .type (Term.abs TermKind.set A φ_r.wk1))
     | _, _ => return none
@@ -319,7 +319,7 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
   -- l is the ghost witness: checked under Γ.upgrade
   -- ∪ x : A, B x
   | Term.bin TermKind.repr l r => do
-    match ← inferType (Ctx.upgrade Γ) fvars l, ← inferType Γ fvars r with
+    match ← inferType (Ctx.upgrade Γ) ρ fvars l, ← inferType Γ ρ fvars r with
     | some (.expr .type A), some (.expr .type B_r) =>
         return some (.expr .type (Term.abs TermKind.union A B_r.wk1))
     | _, _ => return none
@@ -349,14 +349,14 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
   --   s : term ((C.lift 1 1).alpha0 (app (pi nats nats) succ (var 1)))
   --       in  (val C type) :: (val nats type) :: Γ   (step; old-ert uses gst for nats)
   | Term.nr (TermKind.natrec .type) C e z s => do
-    let nats_expr ← Term.nats.toExpr fvars
+    let nats_expr ← Term.nats.toExpr ρ fvars
     let res_C ← withLocalDeclD (← mkFreshUserName `n) nats_expr fun n_fvar =>
-      inferType (Hyp.gst Term.nats :: Γ) (n_fvar :: fvars) C
+      inferType (Hyp.gst Term.nats :: Γ) ρ (n_fvar :: fvars) C
     match res_C with
     | some (.sort .type) =>
-      match ← inferType Γ fvars e with
+      match ← inferType Γ ρ fvars e with
       | some (.expr .type (Term.const TermKind.nats)) =>
-        match ← inferType Γ fvars z with
+        match ← inferType Γ ρ fvars z with
         | some (.expr .type z_ty) =>
           if z_ty == C.subst0 Term.zero then
             let succ_app := Term.tri TermKind.app
@@ -365,9 +365,9 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
             let step_ty  := (C.lift 1 1).alpha0 succ_app
             let step_ctx := Hyp.val C .type :: Hyp.gst Term.nats :: Γ
             let res_s ← withLocalDeclD (← mkFreshUserName `n) nats_expr fun n_fvar => do
-              let C_n ← C.toExpr (n_fvar :: fvars)
+              let C_n ← C.toExpr ρ (n_fvar :: fvars)
               withLocalDeclD (← mkFreshUserName `ih) C_n fun ih_fvar =>
-                inferType step_ctx (ih_fvar :: n_fvar :: fvars) s
+                inferType step_ctx ρ (ih_fvar :: n_fvar :: fvars) s
             match res_s with
             | some (.expr .type s_ty) =>
                 if s_ty == step_ty then return some (.expr .type (C.subst0 e)) else return none
@@ -384,9 +384,9 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
   | Term.bin (TermKind.inj b) annot t => do
     match annot with
     | Term.bin TermKind.coprod A B =>
-      match ← inferType Γ fvars annot with
+      match ← inferType Γ ρ fvars annot with
       | some (.sort .type) =>
-        match ← inferType Γ fvars t with
+        match ← inferType Γ ρ fvars t with
         | some (.expr .type T) =>
           if b.val == 0 && T == A then
             return some (.expr .type (Term.bin TermKind.coprod A B))
@@ -405,18 +405,18 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
   -- A and B come from d's inferred type; the motive body C is extracted from K.
   -- B.wk1 / A.wk1 shift the annotation into the branch context.
   | Term.cases (TermKind.case .type) K d l r => do
-    match ← inferType Γ fvars d with
+    match ← inferType Γ ρ fvars d with
     | some (.expr .type (Term.bin TermKind.coprod A B)) =>
       match K with
       | Term.abs TermKind.lam _ C =>
-        let A_expr ← A.toExpr fvars
-        let B_expr ← B.toExpr fvars
+        let A_expr ← A.toExpr ρ fvars
+        let B_expr ← B.toExpr ρ fvars
         let l_ty := C.alpha0 (Term.bin (TermKind.inj (0 : Fin 2)) B.wk1 (Term.var 0))
         let r_ty := C.alpha0 (Term.bin (TermKind.inj (1 : Fin 2)) A.wk1 (Term.var 0))
         let l_result ← withLocalDeclD (← mkFreshUserName `x) A_expr fun x_fvar =>
-          inferType (Hyp.val A .type :: Γ) (x_fvar :: fvars) l
+          inferType (Hyp.val A .type :: Γ) ρ (x_fvar :: fvars) l
         let r_result ← withLocalDeclD (← mkFreshUserName `y) B_expr fun y_fvar =>
-          inferType (Hyp.val B .type :: Γ) (y_fvar :: fvars) r
+          inferType (Hyp.val B .type :: Γ) ρ (y_fvar :: fvars) r
         match l_result, r_result with
         | some (.expr .type l_ty'), some (.expr .type r_ty') =>
           if l_ty' == l_ty && r_ty' == r_ty then
@@ -437,15 +437,15 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
   | Term.let_bin (TermKind.let_pair .type) P e e' => do
     match P with
     | Term.abs TermKind.sigma A B =>
-      match ← inferType Γ fvars e with
+      match ← inferType Γ ρ fvars e with
       | some (.expr .type P') =>
         if P' != P then return none
-        let A_expr ← A.toExpr fvars
+        let A_expr ← A.toExpr ρ fvars
         withLocalDeclD (← mkFreshUserName `x) A_expr fun x_fvar => do
-          let B_x ← B.toExpr (x_fvar :: fvars)
+          let B_x ← B.toExpr ρ (x_fvar :: fvars)
           withLocalDeclD (← mkFreshUserName `y) B_x fun y_fvar => do
             match ← inferType (Hyp.val B.wk1 .type :: Hyp.val A .type :: Γ)
-                               (y_fvar :: x_fvar :: fvars) e' with
+                               ρ (y_fvar :: x_fvar :: fvars) e' with
             | some (.expr .type T_ext) =>
               return (dropBinders 0 2 T_ext).map (.expr .type)
             | _ => return none
@@ -455,15 +455,15 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
   | Term.let_bin (TermKind.let_set .type) P e e' => do
     match P with
     | Term.abs TermKind.set A φ =>
-      match ← inferType Γ fvars e with
+      match ← inferType Γ ρ fvars e with
       | some (.expr .type P') =>
         if P' != P then return none
-        let A_expr ← A.toExpr fvars
+        let A_expr ← A.toExpr ρ fvars
         withLocalDeclD (← mkFreshUserName `x) A_expr fun x_fvar => do
-          let φ_x ← φ.toExpr (x_fvar :: fvars)
+          let φ_x ← φ.toExpr ρ (x_fvar :: fvars)
           withLocalDeclD (← mkFreshUserName `h) φ_x fun h_fvar => do
             match ← inferType (Hyp.val φ.wk1 .prop :: Hyp.val A .type :: Γ)
-                               (h_fvar :: x_fvar :: fvars) e' with
+                               ρ (h_fvar :: x_fvar :: fvars) e' with
             | some (.expr .type T_ext) =>
               return (dropBinders 0 2 T_ext).map (.expr .type)
             | _ => return none
@@ -473,15 +473,15 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
   | Term.let_bin (TermKind.let_repr .type) P e e' => do
     match P with
     | Term.abs TermKind.union A B =>
-      match ← inferType Γ fvars e with
+      match ← inferType Γ ρ fvars e with
       | some (.expr .type P') =>
         if P' != P then return none
-        let A_expr ← A.toExpr fvars
+        let A_expr ← A.toExpr ρ fvars
         withLocalDeclD (← mkFreshUserName `x) A_expr fun x_fvar => do
-          let B_x ← B.toExpr (x_fvar :: fvars)
+          let B_x ← B.toExpr ρ (x_fvar :: fvars)
           withLocalDeclD (← mkFreshUserName `y) B_x fun y_fvar => do
             match ← inferType (Hyp.val B.wk1 .type :: Hyp.gst A :: Γ)
-                               (y_fvar :: x_fvar :: fvars) e' with
+                               ρ (y_fvar :: x_fvar :: fvars) e' with
             | some (.expr .type T_ext) =>
               return (dropBinders 0 2 T_ext).map (.expr .type)
             | _ => return none
