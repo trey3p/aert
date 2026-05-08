@@ -382,14 +382,17 @@ def inferType (Γ : Ctx) (fvars : List Expr) (e : Term) : MetaM (Option Annot) :
   -- inj 0 B t : coprod T B  when t : T  (inl, annotated with right type B)
   -- inj 1 A t : coprod A T  when t : T  (inr, annotated with left type A)
   | Term.bin (TermKind.inj b) annot t => do
-    match ← inferType Γ fvars annot with
-    | some (.sort .type) =>
-      match ← inferType Γ fvars t with
-      | some (.expr .type T) =>
-        if b.val == 0 then
-          return some (.expr .type (Term.bin TermKind.coprod T annot))
-        else
-          return some (.expr .type (Term.bin TermKind.coprod annot T))
+    match annot with
+    | Term.bin TermKind.coprod A B =>
+      match ← inferType Γ fvars annot with
+      | some (.sort .type) =>
+        match ← inferType Γ fvars t with
+        | some (.expr .type T) =>
+          if b.val == 0 && T == A then
+            return some (.expr .type (Term.bin TermKind.coprod A B))
+          else
+            return some (.expr .type (Term.bin TermKind.coprod A B))
+        | _ => return none
       | _ => return none
     | _ => return none
 
