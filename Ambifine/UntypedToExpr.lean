@@ -1,9 +1,13 @@
 import Ambifine.Untyped
+import Ambifine.Context
 import Lean
 import Qq
 
 open Lean Meta Elab Term
 open Qq
+
+abbrev NamedHyp := Name × Hyp
+abbrev NamedCtx := List NamedHyp
 
 inductive Statement where
 | defn (name : Name) (type : Untyped.Term) (term : Untyped.Term)
@@ -130,21 +134,21 @@ def Untyped.Term.toExpr (env : List Statement) (ctx : List Expr) : Term → Meta
   convert each of those into an `Expr` and then add them to the
   `LocalContext`.
 -/
-def withCtxToLocalCtx {α : Type} (env : List Statement) (ctx : List (Name × Untyped.Term)) (acc : List Expr)
+def withCtxToLocalCtx {α : Type} (env : List Statement) (ctx : NamedCtx) (acc : List Expr)
     (k : List Expr → TermElabM α) : TermElabM α :=
   match ctx with
   | [] => k acc
   | (name, t) :: ts =>
     withCtxToLocalCtx env ts acc fun acc' => do
-      withLocalDeclD name (← t.toExpr env acc') fun x =>
+      withLocalDeclD name (← t.ty.toExpr env acc') fun x =>
         k (x :: acc')
 
 /-- Variant that does not require names to be given.  -/
-def withCtxToLocalCtx' {α : Type} (env : List Statement) (ctx : List Untyped.Term) (acc : List Expr)
+def withCtxToLocalCtx' {α : Type} (env : List Statement) (ctx : Ctx) (acc : List Expr)
     (k : List Expr → TermElabM α) : TermElabM α :=
   match ctx with
   | [] => k acc
   | t :: ts =>
     withCtxToLocalCtx' env ts acc fun acc' => do
-      withLocalDeclD (← mkFreshUserName `x) (← t.toExpr env acc') fun x =>
+      withLocalDeclD (← mkFreshUserName `x) (← t.ty.toExpr env acc') fun x =>
         k (x :: acc')

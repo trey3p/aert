@@ -12,17 +12,18 @@ private def buildNat : Nat → Untyped.Term
 mutual
 
 partial def elabErtType (env : List Statement)
-    (ctx : List (Name × Untyped.Term)) : Syntax → CommandElabM Untyped.Term
+    (ctx : NamedCtx) : Syntax → CommandElabM Untyped.Term
   | `(ertType| 𝟙) => return Untyped.Term.unit
   | `(ertType| ($x : $A) → $B) => do
     let A_term ← elabErtType env ctx A
+    let A_hyp : Hyp := ⟨A_term, .val .type⟩
     let xName := x.getId
-    let B_term ← elabErtType env ((xName, A_term) :: ctx) B
+    let B_term ← elabErtType env ((xName, A_hyp) :: ctx) B
     return Untyped.Term.pi A_term B_term
   | `(ertType| ($x : $A) × $B) => do
     let A_term ← elabErtType env ctx A
     let xName := x.getId
-    let B_term ← elabErtType env ((xName, A_term) :: ctx) B
+    let B_term ← elabErtType env ((xName, Hyp.val A_term .type) :: ctx) B
     return Untyped.Term.sigma A_term B_term
   | `(ertType| $A + $B) => do
     let A_term ← elabErtType env ctx A
@@ -31,40 +32,40 @@ partial def elabErtType (env : List Statement)
   | `(ertType| ($x : $P) ⇒ $B) => do
     let P_term ← elabErtProp env ctx P
     let xName := x.getId
-    let B_term ← elabErtType env ((xName, P_term) :: ctx) B
+    let B_term ← elabErtType env ((xName, Hyp.val P_term .prop) :: ctx) B
     return Untyped.Term.assume P_term B_term
   | `(ertType| {$x : $A | $P}) => do
     let A_term ← elabErtType env ctx A
     let xName := x.getId
-    let P_term ← elabErtProp env ((xName, A_term) :: ctx) P
+    let P_term ← elabErtProp env ((xName, Hyp.val A_term .type) :: ctx) P
     return Untyped.Term.set A_term P_term
   | `(ertType| ∀ $x : $A, $B) => do
     let A_term ← elabErtType env ctx A
     let xName := x.getId
-    let B_term ← elabErtType env ((xName, A_term) :: ctx) B
+    let B_term ← elabErtType env ((xName, Hyp.val A_term .type) :: ctx) B
     return Untyped.Term.intersect A_term B_term
   | `(ertType| ∃ $x : $A, $B) => do
     let A_term ← elabErtType env ctx A
     let xName := x.getId
-    let B_term ← elabErtType env ((xName, A_term) :: ctx) B
+    let B_term ← elabErtType env ((xName, Hyp.val A_term .type) :: ctx) B
     return Untyped.Term.union A_term B_term
   | `(ertType| ℕ) => return Untyped.Term.nats
   | `(ertType| ($A)) => elabErtType env ctx A
   | stx => throwErrorAt stx "Unsupported ERT type: {stx}"
 
 partial def elabErtProp (env : List Statement)
-    (ctx : List (Name × Untyped.Term)) : Syntax → CommandElabM Untyped.Term
+    (ctx : NamedCtx) : Syntax → CommandElabM Untyped.Term
   | `(ertProp| ⊤) => return Untyped.Term.top
   | `(ertProp| ⊥) => return Untyped.Term.bot
   | `(ertProp| ($x : $P) ⇒ $Q) => do
     let P_term ← elabErtProp env ctx P
     let xName := x.getId
-    let Q_term ← elabErtProp env ((xName, P_term) :: ctx) Q
+    let Q_term ← elabErtProp env ((xName, Hyp.val P_term .prop) :: ctx) Q
     return Untyped.Term.dimplies P_term Q_term
   | `(ertProp| ($x : $P) ∧ $Q) => do
     let P_term ← elabErtProp env ctx P
     let xName := x.getId
-    let Q_term ← elabErtProp env ((xName, P_term) :: ctx) Q
+    let Q_term ← elabErtProp env ((xName, Hyp.val P_term .prop) :: ctx) Q
     return Untyped.Term.dand P_term Q_term
   | `(ertProp| $P ∨ $Q) => do
     let P_term ← elabErtProp env ctx P
@@ -73,12 +74,12 @@ partial def elabErtProp (env : List Statement)
   | `(ertProp| ∀ $x : $A, $P) => do
     let A_term ← elabErtType env ctx A
     let xName := x.getId
-    let P_term ← elabErtProp env ((xName, A_term) :: ctx) P
+    let P_term ← elabErtProp env ((xName, Hyp.val A_term .type) :: ctx) P
     return Untyped.Term.forall_ A_term P_term
   | `(ertProp| ∃ $x : $A, $P) => do
     let A_term ← elabErtType env ctx A
     let xName := x.getId
-    let P_term ← elabErtProp env ((xName, A_term) :: ctx) P
+    let P_term ← elabErtProp env ((xName, Hyp.val A_term .type) :: ctx) P
     return Untyped.Term.exists_ A_term P_term
   | `(ertProp| $t:ertTerm = $u:ertTerm) => do
     let t_term ← elabErtTerm env ctx t
@@ -90,7 +91,7 @@ partial def elabErtProp (env : List Statement)
   | `(ertProp| ($P)) => elabErtProp env ctx P
   | stx => throwErrorAt stx "Unsupported ERT prop: {stx}"
 
-partial def elabErtTerm (env : List Statement) (ctx : List (Name × Untyped.Term)) : Syntax → CommandElabM Untyped.Term
+partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → CommandElabM Untyped.Term
   | `(ertTerm| succ) => return Untyped.Term.succ
   | `(ertTerm| $x:ident) => do
     let xName := x.getId
@@ -104,12 +105,12 @@ partial def elabErtTerm (env : List Statement) (ctx : List (Name × Untyped.Term
   | `(ertTerm| λ $x : $A:ertType . $t) => do
     let A_term ← elabErtType env ctx A
     let xName := x.getId
-    let t_term ← elabErtTerm env ((xName, A_term) :: ctx) t
+    let t_term ← elabErtTerm env ((xName, Hyp.val A_term .type) :: ctx) t
     return Untyped.Term.lam A_term t_term
   | `(ertTerm| λ $x : $P:ertProp . $t) => do
     let P_term ← elabErtProp env ctx P
     let xName := x.getId
-    let t_term ← elabErtTerm env ((xName, P_term) :: ctx) t
+    let t_term ← elabErtTerm env ((xName, Hyp.val P_term .prop) :: ctx) t
     return Untyped.Term.lam_pr P_term t_term
   | `(ertTerm| $f:ertTerm $a:ertTerm) => do
     let f_term ← elabErtTerm env ctx f
@@ -140,7 +141,7 @@ partial def elabErtTerm (env : List Statement) (ctx : List (Name × Untyped.Term
     let e_term ← elabErtTerm env ctx e
     let xName := x.getId
     let yName := y.getId
-    let b_term ← elabErtTerm env ((yName, y_term) :: (xName, x_term) :: ctx) b
+    let b_term ← elabErtTerm env ((yName, Hyp.val y_term .type) :: (xName, Hyp.val x_term .type) :: ctx) b
     return Untyped.Term.let_pair .type A_term e_term b_term
   | `(ertTerm| (inl $t) : $AB:ertType) => do
     return Untyped.Term.inj (0 : Fin 2) (← elabErtType env ctx AB) (← elabErtTerm env ctx t)
@@ -149,15 +150,15 @@ partial def elabErtTerm (env : List Statement) (ctx : List (Name × Untyped.Term
   | `(ertTerm| cases [$x : $D ↦ $C] $d |inl ($xl : $A) ↦ $l |inr ($xr : $B) ↦ $r) => do
     let xName := x.getId
     let D_term ← elabErtType env ctx D
-    let C_term ← elabErtType env ((xName, D_term) :: ctx) C
+    let C_term ← elabErtType env ((xName, Hyp.val D_term .type) :: ctx) C
     let K_term := Untyped.Term.lam D_term C_term
     let d_term ← elabErtTerm env ctx d
     let A_term ← elabErtType env ctx A
     let xlName := xl.getId
-    let l_term ← elabErtTerm env ((xlName, A_term) :: ctx) l
+    let l_term ← elabErtTerm env ((xlName, Hyp.val A_term .type) :: ctx) l
     let xrName := xr.getId
     let B_term ← elabErtType env ctx B
-    let r_term ← elabErtTerm env ((xrName, B_term) :: ctx) r
+    let r_term ← elabErtTerm env ((xrName, Hyp.val B_term .type) :: ctx) r
     return Untyped.Term.case .type K_term d_term l_term r_term
   | `(ertTerm| {$x, $p : $P}) => do
     let x_term ← elabErtTerm env ctx x
@@ -176,12 +177,12 @@ partial def elabErtTerm (env : List Statement) (ctx : List (Name × Untyped.Term
     let x_term ← elabErtTerm env ctx x
     let aName := a.getId
     let bName := b.getId
-    let e_term ← elabErtTerm env ((bName, b_term) :: (aName, a_term) :: ctx) e
+    let e_term ← elabErtTerm env ((bName, Hyp.val b_term .prop) :: (aName, Hyp.val a_term .type) :: ctx) e
     return Untyped.Term.let_set .type A_term x_term e_term
   | `(ertTerm| λ ‖$x : $A‖ . $t) => do
     let A_term ← elabErtType env ctx A
     let xName := x.getId
-    let t_term ← elabErtTerm env ((xName, A_term) :: ctx) t
+    let t_term ← elabErtTerm env ((xName, Hyp.val A_term .type) :: ctx) t
     return Untyped.Term.lam_irrel A_term t_term
   | `(ertTerm| $f:ertTerm (‖ $a:ertTerm ‖) ) => do
     let f_term ← elabErtTerm env ctx f
@@ -200,7 +201,7 @@ partial def elabErtTerm (env : List Statement) (ctx : List (Name × Untyped.Term
     let e_term ← elabErtTerm env ctx e
     let xName := x.getId
     let yName := y.getId
-    let b_term ← elabErtTerm env ((yName, y_term) :: (xName, x_term) :: ctx) b
+    let b_term ← elabErtTerm env ((yName, Hyp.val y_term .type) :: (xName, Hyp.val x_term .type) :: ctx) b
     return Untyped.Term.let_repr .type A_term e_term b_term
   | `(ertTerm| $n:num) =>
     return buildNat n.getNat
@@ -208,12 +209,12 @@ partial def elabErtTerm (env : List Statement) (ctx : List (Name × Untyped.Term
     | ‖succ $xs:ident‖ , $xp ↦ $s) => do
     let xName := x.getId
     -- K has 1 binder in nr [1,0,0,2]: elaborate body with x in scope directly
-    let K_term ← elabErtType env ((xName, Untyped.Term.nats) :: ctx) C
+    let K_term ← elabErtType env ((xName, Hyp.val Untyped.Term.nats .type) :: ctx) C
     let e_term ← elabErtTerm env ctx e
     let z_term ← elabErtTerm env ctx z
     let xsName := xs.getId
     let xpName := xp.getId
-    let s_term ← elabErtTerm env ((xpName, K_term) :: (xsName, Untyped.Term.nats) :: ctx) s
+    let s_term ← elabErtTerm env ((xpName, Hyp.val K_term .type) :: (xsName, Hyp.val Untyped.Term.nats .type) :: ctx) s
     return Untyped.Term.natrec .type K_term e_term z_term s_term
   | `(ertTerm| ($t)) => elabErtTerm env ctx t
   | stx => throwErrorAt stx "Unsupported ERT term: {stx}"
