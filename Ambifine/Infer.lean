@@ -466,7 +466,8 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM (Opti
             match ← inferType (Hyp.val φ.wk1 .prop :: Hyp.val A .type :: Γ)
                                ρ (h_fvar :: x_fvar :: fvars) e' with
             | some (.expr .type T_ext) =>
-              return (dropBinders 0 2 T_ext).map (.expr .type)
+              -- h (var 0) is proof-irrelevant; drop it, then substitute x (var 0) with e
+              return (dropBinders 0 1 T_ext).map (fun T' => .expr .type (T'.subst0 e))
             | _ => return none
       | _ => return none
     | _ => return none
