@@ -134,7 +134,7 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
     | a => throwError m!"assume: hypothesis {repr φ} must be a prop, got {repr a}"
 
   | Term.abs TermKind.intersect A B => do
-    match ← inferType Γ ρ fvars A with
+  match ← inferType Γ ρ fvars A with
     | .sort .type =>
       let A_expr ← A.toExpr ρ fvars
       let res ← withLocalDeclD (← mkFreshUserName `x) A_expr fun x =>
@@ -500,6 +500,20 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
       | a => throwError m!"let_repr: scrutinee {repr e} must have a type, got {repr a}"
     | _ => throwError m!"let_repr: annotation must be a union type"
 
+  | Term.eq A l r => do
+    match ← inferType Γ ρ fvars l with
+    | .expr .type L =>
+      if L == A then
+        match ← inferType Γ ρ fvars r with
+        | .expr .type R =>
+            if R == A then
+              return .sort .prop
+            else
+              throwError m!"eq: RHS {repr r} must have type {repr A}, got {repr R}"
+        | a => throwError m!"eq: RHS {repr r} must have type {repr A}, got {repr a}"
+      else
+        throwError m!"eq: LHS {repr l} must have type {repr A}, got {repr L}"
+    | a => throwError m!"eq: LHS {repr l} must have type {repr A}, got {repr a}"
   -- ── Not inferrable without annotation ────────────────────────────────────
   -- abort       : return type is arbitrary, no annotation in term
   -- ir forms    : equality proofs (trans, cong, prir, …)

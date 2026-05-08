@@ -23,13 +23,13 @@ syntax "(" ident " : " ertProp ")" " ∧ " ertProp : ertProp
 syntax ertProp " ∨ " ertProp : ertProp
 syntax "∀" ident " : " ertType ", " ertProp : ertProp
 syntax "∃" ident " : " ertType ", " ertProp : ertProp
-syntax ertTerm " = " ertTerm : ertProp
+syntax ertTerm " = " "(" ertType ")" ertTerm : ertProp
 syntax "(" ertProp ")" : ertProp
 
 -- Syntax for terms
 syntax ident : ertTerm
 syntax "λ" ident " : " ertType " . " ertTerm : ertTerm
-syntax ertTerm ertTerm : ertTerm
+syntax "(" ertTerm " : " ertType ")" ertTerm : ertTerm
 syntax "(" ertTerm ", " ertTerm ")" : ertTerm
 syntax "let " "(" ident ", " ident ")" ":" ertType " = " ertTerm
   " in " ertTerm : ertTerm

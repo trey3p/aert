@@ -83,13 +83,12 @@ partial def elabErtProp (env : List Statement)
     let xName := x.getId
     let .expr _ P_term ← elabErtProp env ((xName, Hyp.val A_term .type) :: ctx) P | throwErrorAt P "expected prop expression"
     return .expr .prop (Untyped.Term.exists_ A_term P_term)
-  | `(ertProp| $t:ertTerm = $u:ertTerm) => do
+  | `(ertProp| $t:ertTerm =($A:ertType) $u:ertTerm) => do
     let t_term ← elabErtTerm env ctx t
     let u_term ← elabErtTerm env ctx u
-    /- `eq` expects to have the type of the two terms,
-      we leave a placeholder of unit for the type.
-    -/
-    return .expr .prop (Untyped.Term.eq Untyped.Term.unit t_term u_term)
+    let .expr _ A_term ← elabErtType env ctx A
+      | throwErrorAt A m!"Expected type, got {repr A}"
+    return .expr .prop (Untyped.Term.eq A_term t_term u_term)
   | `(ertProp| ($P)) => elabErtProp env ctx P
   | stx => throwErrorAt stx "Unsupported ERT prop: {stx}"
 
@@ -114,12 +113,12 @@ partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → Com
     let xName := x.getId
     let t_term ← elabErtTerm env ((xName, Hyp.val P_term .prop) :: ctx) t
     return Untyped.Term.lam_pr P_term t_term
-  | `(ertTerm| $f:ertTerm $a:ertTerm) => do
+  | `(ertTerm| ($f:ertTerm : $A:ertType) $a:ertTerm) => do
     let f_term ← elabErtTerm env ctx f
     let a_term ← elabErtTerm env ctx a
-    /- `app` expects the type of the function to be given
-    - We leave a placeholder of `unit` there so that it can be inferred later. -/
-    return Untyped.Term.app Untyped.Term.unit f_term a_term
+    let .expr _ A_term ← elabErtType env ctx A
+      | throwErrorAt A m!"Expected type, got {repr A}"
+    return Untyped.Term.app A_term f_term a_term
   | `(ertTerm| $f:ertTerm ($a:term : $P:ertProp)) => do
     let f_term ← elabErtTerm env ctx f
     let .expr _ P_term ← elabErtProp env ctx P | throwErrorAt P "expected prop expression"
