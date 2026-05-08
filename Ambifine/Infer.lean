@@ -12,6 +12,7 @@ namespace Untyped
 inductive Annot where
   | sort : AnnotSort → Annot
   | expr : AnnotSort → Term → Annot
+deriving BEq
 
 -- inferType mirrors HasType as a decision procedure.
 -- Deviations from old-ert's HasType:
