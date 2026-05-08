@@ -9,7 +9,7 @@ namespace Untyped
 inductive AnnotSort
   | type
   | prop
-  deriving DecidableEq, BEq, Repr
+deriving DecidableEq, BEq, Repr
 
 -- Term kinds
 --TODO: consider making higher order?
