@@ -67,12 +67,12 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM (Opti
     if ← isDefEq k_ty p_expr then
       return some (.expr .prop p)
     else
-      return none
+      throwError m!"proof {k} has type {k_ty} but was expected to have type {p_expr}"
   -- Variables: ghost bindings are not directly usable as values
   | Term.var n =>
     match lookupVar Γ n with
     | some (HypKind.val s, A) => return some (.expr s A)
-    | _ => return none
+    | _ => throwError "variable {n} is not in context {repr Γ}"
 
   -- ── Constants ─────────────────────────────────────────────────────────────
 
@@ -96,8 +96,8 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM (Opti
         inferType (Hyp.val A .type :: Γ) ρ (x :: fvars) B
       match res with
       | some (.sort .type) => return some (.sort .type)
-      | _ => return none
-    | _ => return none
+      | _ => throwError m!"codomain of pi is {repr B} which is not a type"
+    | _ => throwError m!"domain of pi is {repr A}, which is not a type"
 
   | Term.abs TermKind.sigma A B => do
     match ← inferType Γ ρ fvars A with
@@ -107,8 +107,8 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM (Opti
         inferType (Hyp.val A .type :: Γ) ρ (x :: fvars) B
       match res with
       | some (.sort .type) => return some (.sort .type)
-      | _ => return none
-    | _ => return none
+      | _ => throwError m!"codomain of sigma is {repr B} which is not a type"
+    | _ => throwError m!"domain of sigma is {repr A} which is not a type"
 
   | Term.abs TermKind.set A B => do
     match ← inferType Γ ρ fvars A with
@@ -118,8 +118,8 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM (Opti
         inferType (Hyp.val A .type :: Γ) ρ (x :: fvars) B
       match res with
       | some (.sort .prop) => return some (.sort .type)
-      | _ => return none
-    | _ => return none
+      | _ => throwError m!"codomain of set is {repr B} which is not at type"
+    | _ => throwError m!"domain of set is {repr A} which is not a type"
 
   | Term.abs TermKind.assume φ A => do
     match ← inferType Γ ρ fvars φ with
@@ -129,8 +129,8 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM (Opti
         inferType (Hyp.val φ .prop :: Γ) ρ (x :: fvars) A
       match res with
       | some (.sort .type) => return some (.sort .type)
-      | _ => return none
-    | _ => return none
+      | _ => throwError m!"codomain of assume is {repr A} which is not at type"
+    | _ => throwError m!"domain of assume is {repr φ} which is not a type"
 
   | Term.abs TermKind.intersect A B => do
     match ← inferType Γ ρ fvars A with
@@ -140,8 +140,8 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM (Opti
         inferType (Hyp.gst A :: Γ) ρ (x :: fvars) B
       match res with
       | some (.sort .type) => return some (.sort .type)
-      | _ => return none
-    | _ => return none
+      | _ => throwError m!"codomain of intersect is {repr B} which is not at type"
+    | _ => throwError m!"domain of intersect is {repr A} which is not a type"
 
   | Term.abs TermKind.union A B => do
     match ← inferType Γ ρ fvars A with
@@ -151,13 +151,13 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM (Opti
         inferType (Hyp.gst A :: Γ) ρ (x :: fvars) B
       match res with
       | some (.sort .type) => return some (.sort .type)
-      | _ => return none
-    | _ => return none
+      | _ => throwError m!"codomain of union is {repr B} which is not at type"
+    | _ => throwError m!"domain of union is {repr A} which is not a type"
 
   | Term.bin TermKind.coprod A B => do
     match ← inferType Γ ρ fvars A, ← inferType Γ ρ fvars B with
     | some (.sort .type), some (.sort .type) => return some (.sort .type)
-    | _, _ => return none
+    | _, _ => throwError m!"copod has {repr A} and {repr B} but at least one of them is not a type"
 
   -- ── Proposition formers ───────────────────────────────────────────────────
 
@@ -169,8 +169,8 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM (Opti
         inferType (Hyp.val φ .prop :: Γ) ρ (x :: fvars) ψ
       match res with
       | some (.sort .prop) => return some (.sort .prop)
-      | _ => return none
-    | _ => return none
+      | _ => throwError m!"codomain of dand is {repr ψ} which is not at type"
+    | _ => throwError m!"domain of dand is {repr φ} which is not a type"
 
   | Term.abs TermKind.dimplies φ ψ => do
     match ← inferType Γ ρ fvars φ with
