@@ -18,38 +18,6 @@ deriving BEq, Repr
 -- Deviations from old-ert's HasType:
 --   - abort, ir, nz: not inferrable (see bottom).
 
--- Remove the outermost `n` binders from a type that lives in an n-deeper context.
--- Returns none if the term references any of the n dropped variables (i.e. the
--- elimination is dependent and we cannot compute the result type without a motive).
-private def dropBinders : (depth n : Nat) → Term → Option Term
-  | d, n, .proof e ty => (.proof e) <$> dropBinders d n ty
-  | d, n, .var v =>
-      if v < d then some (.var v)
-      else if v < d + n then none
-      else some (.var (v - n))
-  | _, _, .const c => some (.const c)
-  | d, n, .unary k t => .unary k <$> dropBinders d n t
-  | d, n, .bin k l r => return .bin k (← dropBinders d n l) (← dropBinders d n r)
-  | d, n, .abs k A body =>
-      return .abs k (← dropBinders d n A) (← dropBinders (d + 1) n body)
-  | d, n, .tri k A l r =>
-      return .tri k (← dropBinders d n A) (← dropBinders d n l) (← dropBinders d n r)
-  | d, n, .ir k x y P =>
-      return .ir k (← dropBinders d n x) (← dropBinders d n y) (← dropBinders (d + 1) n P)
-  | d, n, .cases k K disc l r =>
-      return .cases k (← dropBinders d n K) (← dropBinders d n disc)
-                      (← dropBinders (d + 1) n l) (← dropBinders (d + 1) n r)
-  | d, n, .let_bin k P e e' =>
-      return .let_bin k (← dropBinders d n P) (← dropBinders d n e) (← dropBinders (d + 2) n e')
-  | d, n, .let_bin_beta k P l r e' =>
-      return .let_bin_beta k (← dropBinders d n P) (← dropBinders d n l)
-                             (← dropBinders d n r) (← dropBinders (d + 2) n e')
-  | d, n, .nr k K e z s =>
-      return .nr k (← dropBinders (d + 1) n K) (← dropBinders d n e)
-                   (← dropBinders d n z) (← dropBinders (d + 2) n s)
-  | d, n, .nz k K z s =>
-      return .nz k (← dropBinders (d + 1) n K) (← dropBinders d n z) (← dropBinders (d + 2) n s)
-
 /--
 inferType Γ fvars e returns the annotation for e if it can be inferred to be well-typed in Γ,
 and throws an error with a message describing the failure otherwise.
@@ -317,7 +285,7 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
   | Term.bin TermKind.elem l r => do
     match ← inferType Γ ρ fvars l, ← inferType Γ ρ fvars r with
     | .expr .type A, .expr .prop φ_r =>
-        return .expr .type (Term.abs TermKind.set A φ_r.wk1)
+        return .expr .type (Term.abs TermKind.set A φ_r)
     | aL, aR => throwError m!"elem: expected (type, prop), got {repr aL} and {repr aR}"
 
   -- repr l r : term (union A (B_r.wk1))
@@ -437,8 +405,7 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
   --   let_pair  P = sigma A B :  var 0 = y : B.wk1,  var 1 = x : A
   --   let_set   P = set A φ   :  var 0 = h : φ.wk1,  var 1 = x : A
   --   let_repr  P = union A B :  var 0 = y : B.wk1,  var 1 = x : A (ghost)
-  -- The return type is inferred from e' and `dropBinders 0 2` removes the two
-  -- extra binders.  Throws if e' has a dependent return type (uses var 0/1).
+
 
   | Term.let_bin (TermKind.let_pair .type) P e e' => do
     match P with
@@ -452,10 +419,7 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
           withLocalDeclD (← mkFreshUserName `y) B_x fun y_fvar => do
             match ← inferType (Hyp.val B.wk1 .type :: Hyp.val A .type :: Γ)
                                ρ (y_fvar :: x_fvar :: fvars) e' with
-            | .expr .type T_ext =>
-              match dropBinders 0 2 T_ext with
-              | some T => return .expr .type T
-              | none => throwError m!"let_pair: body has a dependent return type"
+            | .expr .type T_ext => return .expr .type T_ext
             | a => throwError m!"let_pair: body {repr e'} must have a type, got {repr a}"
       | a => throwError m!"let_pair: scrutinee {repr e} must have a type, got {repr a}"
     | _ => throwError m!"let_pair: annotation must be a sigma type"
@@ -470,12 +434,9 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
         withLocalDeclD (← mkFreshUserName `x) A_expr fun x_fvar => do
           let φ_x ← φ.toExpr ρ (x_fvar :: fvars)
           withLocalDeclD (← mkFreshUserName `h) φ_x fun h_fvar => do
-            match ← inferType (Hyp.val φ.wk1 .prop :: Hyp.val A .type :: Γ)
+            match ← inferType (Hyp.val φ .prop :: Hyp.val A .type :: Γ)
                                ρ (h_fvar :: x_fvar :: fvars) e' with
-            | .expr .type T_ext =>
-              match dropBinders 0 1 T_ext with
-              | some T => return .expr .type (T.subst0 e)
-              | none => throwError m!"let_set: body has a dependent return type"
+            | .expr .type T_ext => return .expr .type T_ext
             | a => throwError m!"let_set: body {repr e'} must have a type, got {repr a}"
       | a => throwError m!"let_set: scrutinee {repr e} must have a type, got {repr a}"
     | _ => throwError m!"let_set: annotation must be a set type"
@@ -492,10 +453,7 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
           withLocalDeclD (← mkFreshUserName `y) B_x fun y_fvar => do
             match ← inferType (Hyp.val B.wk1 .type :: Hyp.gst A :: Γ)
                                ρ (y_fvar :: x_fvar :: fvars) e' with
-            | .expr .type T_ext =>
-              match dropBinders 0 2 T_ext with
-              | some T => return .expr .type T
-              | none => throwError m!"let_repr: body has a dependent return type"
+            | .expr .type T_ext => return .expr .type T_ext
             | a => throwError m!"let_repr: body {repr e'} must have a type, got {repr a}"
       | a => throwError m!"let_repr: scrutinee {repr e} must have a type, got {repr a}"
     | _ => throwError m!"let_repr: annotation must be a union type"
