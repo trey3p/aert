@@ -163,7 +163,7 @@ partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → Com
     let .expr _ B_term ← elabErtType env ctx B | throwErrorAt B "expected type expression"
     let r_term ← elabErtTerm env ((xrName, Hyp.val B_term .type) :: ctx) r
     return Untyped.Term.case .type K_term d_term l_term r_term
-  | `(ertTerm| {$x, $p : $P}) => do
+  | `(ertTerm| {$x, $p : $P} : $T) => do
     let x_term ← elabErtTerm env ctx x
     let .expr _ P_term ← elabErtProp env ctx P | throwErrorAt P "expected prop expression"
     let p_term ← liftTermElabM $ do
@@ -171,7 +171,8 @@ partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → Com
       let expectedType ← P_term.toExpr env fvars
       let proof ← Term.elabTermAndSynthesize p (some expectedType)
       mkLambdaFVars fvars.toArray proof
-    return Untyped.Term.elem x_term (Untyped.Term.proof p_term P_term)
+    let .expr _ T_term ← elabErtType env ctx T | throwErrorAt T "expected expression"
+    return Untyped.Term.elem x_term (Untyped.Term.proof p_term P_term) T_term
   | `(ertTerm| let {$a, $b} : $A = $x in $e) => do
     let .expr _ A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
     let (a_term, b_term) ←

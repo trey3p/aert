@@ -280,13 +280,22 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
         return .expr .type (Term.abs TermKind.sigma A B_r.wk1)
     | aL, aR => throwError m!"pair: both components must have types, got {repr aL} and {repr aR}"
 
-  -- elem l r : term (set A (φ_r.wk1))
-  -- {x : A | φ}
-  | Term.bin TermKind.elem l r => do
-    match ← inferType Γ ρ fvars l, ← inferType Γ ρ fvars r with
-    | .expr .type A, .expr .prop φ_r =>
-        return .expr .type (Term.abs TermKind.set A φ_r)
-    | aL, aR => throwError m!"elem: expected (type, prop), got {repr aL} and {repr aR}"
+  -- elem l r : term (set A P)
+  -- When l = var k, P is obtained by abstracting var k from φ_r (so P.subst0(var k) = φ_r).
+  -- Otherwise falls back to the wk1 trick: P = φ_r.wk1.
+  | Term.elem l r Ty => do
+    match Ty with
+    | .set domTy predicate =>
+      match ← inferType Γ ρ fvars l, ← inferType Γ ρ fvars r with
+      | .expr .type A, .expr .prop φ_r =>
+        unless domTy == A do
+          throwError m!"elem: expected domain type to be {repr domTy}, got {repr A}"
+        let instantiatedPredicate := predicate.subst0 l
+        unless φ_r == instantiatedPredicate do
+          throwError m!"elem: proof has the wrong types, expected {repr instantiatedPredicate}, got {repr φ_r}"
+        return .expr .type Ty
+      | aL, aR => throwError m!"elem: expected (type, prop), got {repr aL} and {repr aR}"
+    | x => throwError m!"elem: expected type to be a set, got {repr x}"
 
   -- repr l r : term (union A (B_r.wk1))
   -- l is the ghost witness: checked under Γ.upgrade

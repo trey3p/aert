@@ -55,7 +55,8 @@ inductive TermKind: List Nat -> Type
   | lam_pr: TermKind [0, 1]
   | app_pr: TermKind [0, 0, 0]
   -- Consider merging with intro/elim for (sigma, type, prop)
-  | elem: TermKind [0, 0]
+  -- The term, the proof that the term satisfies the predicate, the type of the Set
+  | elem: TermKind [0, 0, 0]
   | let_set: AnnotSort -> TermKind [0, 0, 2]
   -- Consider merging with intro/elim for (pi, ghost, type)
   | lam_irrel: TermKind [0, 1]
@@ -122,7 +123,8 @@ deriving BEq, Repr
 @[match_pattern] abbrev Term.let_pair := λk => let_bin (TermKind.let_pair k)
 @[match_pattern] abbrev Term.inj := λb => bin (TermKind.inj b)
 @[match_pattern] abbrev Term.case := λk => cases (TermKind.case k)
-@[match_pattern] abbrev Term.elem := bin TermKind.elem
+/-- Constructs a term of type set. E.g. `{a, p} : {x : ℕ | x = 5}` -/
+@[match_pattern] abbrev Term.elem := tri TermKind.elem
 @[match_pattern] abbrev Term.let_set := λk => let_bin (TermKind.let_set k)
 @[match_pattern] abbrev Term.lam_pr := abs TermKind.lam_pr
 @[match_pattern] abbrev Term.app_pr := tri TermKind.app_pr

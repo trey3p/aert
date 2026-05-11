@@ -39,7 +39,7 @@ syntax "cases" "[" ident ":" ertType "↦" ertType "]" ertTerm "|" "inl" "(" ide
   "|" "inr" "(" ident " : " ertType ")" "↦" ertTerm : ertTerm
 syntax "λ" ident " : " ertProp " . " ertTerm : ertTerm
 syntax ertTerm "(" term " : " ertProp ")" : ertTerm
-syntax "{" ertTerm ", " term " :  " ertProp "}" : ertTerm
+syntax "{" ertTerm ", " term " :  " ertProp "}" " : " ertType : ertTerm
 syntax "let" "{" ident ", " ident "}" " : " ertType " = "
   ertTerm " in " ertTerm : ertTerm
 syntax "λ" "‖" ident " : " ertType "‖" " . " ertTerm : ertTerm

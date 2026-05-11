@@ -83,4 +83,9 @@ def Subst.alpha0 (t : Term) : Subst
 
 def Term.alpha0 (e r : Term) : Term := e.subst (Subst.alpha0 r)
 
+-- Abstract over variable k in t: lift t by 1, then replace var (k+1) with var 0.
+-- Produces predicate P satisfying P.subst0(var k) = t.
+def Term.abstractVar (k : Nat) (t : Term) : Term :=
+  (t.lift 0 1).subst fun j => if j == k + 1 then .var 0 else .var j
+
 end Untyped

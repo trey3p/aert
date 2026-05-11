@@ -97,7 +97,7 @@ def Untyped.Term.toExpr (env : List Statement) (ctx : List Expr) : Term → Meta
   let l_expr ← l.toExpr env ctx
   let r_expr ← r.toExpr env ctx
   mkAppM ``Sigma.mk #[l_expr, r_expr]
-| Term.elem l r
+| Term.elem l r _
 | Term.repr l r => do
   let l_expr ← l.toExpr env ctx
   let r_expr ← r.toExpr env ctx
