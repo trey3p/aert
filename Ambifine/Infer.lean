@@ -483,26 +483,21 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
     | a => throwError m!"eq: LHS {repr l} must have type {repr A}, got {repr a}"
   | Term.list A => do
     match ← inferType Γ ρ fvars A with
-    | .expr .type _ => return .sort .type
+    | .sort .type => return .sort .type
     | a => throwError m!"list: element type {repr A} must have a type, got {repr a}"
   | Term.em A => do
     match ← inferType Γ ρ fvars A with
     | .expr .type la => return .expr .type la
     | a => throwError m!"[]: element type {repr A} must have a type, got {repr a}"
-  | Term.cons A x xs => do
-    match ← inferType Γ ρ fvars A with
-    | .expr .type _ =>
-      match ← inferType Γ ρ fvars x with
-      | .expr .type x_ty =>
-          if x_ty == A then
-            match ← inferType Γ ρ fvars xs with
-            | .expr .type xs_ty =>
-                if xs_ty == Term.list A then return .expr .type (Term.list A)
-                else throwError m!"cons: tail {repr xs} must have type list {repr A}, got {repr xs_ty}"
-            | a => throwError m!"cons: tail {repr xs} must have type list {repr A}, got {repr a}"
-          else throwError m!"cons: head {repr x} must have type {repr A}, got {repr x_ty}"
-      | a => throwError m!"cons: head {repr x} must have type {repr A}, got {repr a}"
-    | a => throwError m!"cons: element type {repr A} must have a type, got {repr a}"
+  | Term.cons x xs => do
+    match ← inferType Γ ρ fvars x with
+    | .expr .type x_ty =>
+          match ← inferType Γ ρ fvars xs with
+          | .expr .type xs_ty =>
+                if xs_ty == Term.list x_ty then return .expr .type (Term.list x_ty)
+                else throwError m!"cons: tail {repr xs} must have type list {repr x_ty}, got {repr xs_ty}"
+          | a => throwError m!"cons: tail {repr xs} must have type list {repr x_ty}, got {repr a}"
+    | a => throwError m!"cons: head {repr x} must have a type, got {repr a}"
   | Term.listrec _ C e nil_case cons_case => do
     match ← inferType Γ ρ fvars C with
     | .sort .type =>
