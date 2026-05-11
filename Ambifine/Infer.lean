@@ -487,7 +487,7 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
     | a => throwError m!"list: element type {repr A} must have a type, got {repr a}"
   | Term.em A => do
     match ← inferType Γ ρ fvars A with
-    | .sort .type => return A
+    | .sort .type => return .expr .type A
     | a => throwError m!"[]: element type {repr A} must have a type, got {repr a}"
   | Term.cons x xs => do
     match ← inferType Γ ρ fvars x with
