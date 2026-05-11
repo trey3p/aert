@@ -29,6 +29,8 @@ def Term.lift (cutoff shift : Nat) : Term → Term
                                  (z.lift cutoff shift) (s.lift (cutoff + 2) shift)
   | .nz k K z s        => .nz k (K.lift (cutoff + 1) shift) (z.lift cutoff shift)
                                   (s.lift (cutoff + 2) shift)
+  | .lr k K e n c      => .lr k (K.lift (cutoff + 1) shift) (e.lift cutoff shift)
+                                  (n.lift cutoff shift) (c.lift (cutoff + 2) shift)
 
 def Term.wk1 (t : Term) : Term := t.lift 0 1
 def Term.wkn (n : Nat) (t : Term) : Term := t.lift 0 n
@@ -66,6 +68,8 @@ def Term.subst (e : Term) (s : Subst ) : Term :=
       Term.nr k (K.subst s.lift) (e.subst s) (z.subst s) (q.subst s.lift.lift)
   | Term.nz k K z q =>
       Term.nz k (K.subst s.lift) (z.subst s) (q.subst s.lift.lift)
+  | Term.lr k K e n c =>
+      Term.lr k (K.subst s.lift) (e.subst s) (n.subst s) (c.subst s.lift.lift)
 
 -- Single-variable substitution: replace var 0 with t, decrement all others.
 def Subst.subst0 (t : Term) : Subst
