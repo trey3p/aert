@@ -53,6 +53,10 @@ partial def elabErtType (env : List Statement)
     return .expr .type (Untyped.Term.union A_term B_term)
   | `(ertType| ℕ) => return .expr .type Untyped.Term.nats
   | `(ertType| ($A)) => elabErtType env ctx A
+  | `(ertType| list $A) => do
+    let .expr _ A_term ← elabErtType env ctx A
+      | throwErrorAt A "expected type expression"
+    return .expr .type (Untyped.Term.list A_term)
   | stx => throwErrorAt stx "Unsupported ERT type: {stx}"
 
 partial def elabErtProp (env : List Statement)
@@ -222,6 +226,16 @@ partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → Com
     let s_term ← elabErtTerm env ((xpName, Hyp.val K_term .type) :: (xsName, Hyp.val Untyped.Term.nats .type) :: ctx) s
     return Untyped.Term.natrec .type K_term e_term z_term s_term
   | `(ertTerm| ($t)) => elabErtTerm env ctx t
+  | `(ertTerm| nil : $A) => do
+    let .expr _ A_term ← elabErtType env ctx A
+      | throwErrorAt A "expected type expression"
+    return Untyped.Term.em A_term
+  | `(ertTerm| ($x : $A) :: $xs) => do
+    let x_term ← elabErtTerm env ctx x
+    let xs_term ← elabErtTerm env ctx xs
+    let .expr _ A_term ← elabErtType env ctx A
+      | throwErrorAt A "expected type expression"
+    return Untyped.Term.cons A_term x_term xs_term
   | stx => throwErrorAt stx "Unsupported ERT term: {stx}"
 
 end

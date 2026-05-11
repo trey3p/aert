@@ -14,7 +14,7 @@ syntax "∀" ident " : " ertType ", " ertType : ertType
 syntax "∃" ident " : " ertType ", " ertType : ertType
 syntax "ℕ" : ertType
 syntax "(" ertType ")" : ertType
-syntax "List " ertType : ertType
+syntax "list " ertType : ertType
 
 -- Syntax for props
 syntax "⊤" : ertProp
@@ -53,8 +53,8 @@ syntax "succ" : ertTerm
 syntax "natrec" "[" ident "↦" ertType "]" ertTerm "|" ertTerm
   "|" "‖" "succ" ident "‖" ", " ident "↦" ertTerm : ertTerm
 syntax "(" ertTerm ")" : ertTerm
-syntax "[]" " : " ertType : ertTerm
-syntax ertTerm " :: " ertTerm : ertTerm
+syntax "nil" " : " ertType : ertTerm
+syntax "(" ertTerm " : " ertType ")" " :: " ertTerm : ertTerm
 
 syntax "def" ident " : " ertType " := " ertTerm : ertStatement
 syntax "def" ident " : " ertProp " := " term : ertStatement
