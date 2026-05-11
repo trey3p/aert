@@ -19,6 +19,7 @@ inductive TermKind: List Nat -> Type
   | pi: TermKind [0, 1] -- (pi, type, type)
   | sigma: TermKind [0,1] -- (sigma, type, type)
   | coprod: TermKind [0, 0]
+  | list : TermKind [0]
   --TODO: consider merging with (pi, prop, type)
   | assume: TermKind [0, 1]
   --TODO: consider merging with (sigma, prop, type)
@@ -73,6 +74,10 @@ inductive TermKind: List Nat -> Type
   | beta_zero: TermKind [1, 0, 2]
   | beta_succ: TermKind [1, 0, 0, 2]
 
+  -- Lists
+  | em : TermKind [0]
+  | cons : TermKind [0, 0, 0]
+
   | eq: TermKind [0, 0, 0]
 
   | definition (name : Lean.Name) : TermKind []
@@ -116,6 +121,7 @@ deriving BEq, Repr
 @[match_pattern] abbrev Term.eq := tri TermKind.eq
 
 -- Terms
+@[match_pattern] abbrev Term.cons := tri TermKind.cons
 @[match_pattern] abbrev Term.nil := const TermKind.nil
 @[match_pattern] abbrev Term.lam := abs TermKind.lam
 @[match_pattern] abbrev Term.app := tri TermKind.app
