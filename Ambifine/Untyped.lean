@@ -110,6 +110,7 @@ deriving BEq, Repr
 @[match_pattern] abbrev Term.assume := abs TermKind.assume
 @[match_pattern] abbrev Term.intersect := abs TermKind.intersect
 @[match_pattern] abbrev Term.union := abs TermKind.union
+@[match_pattern] abbrev Term.list := unary TermKind.list
 
 -- Propositions
 @[match_pattern] abbrev Term.top := const TermKind.top
