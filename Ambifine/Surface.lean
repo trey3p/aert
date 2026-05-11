@@ -54,7 +54,7 @@ syntax "natrec" "[" ident "↦" ertType "]" ertTerm "|" ertTerm
   "|" "‖" "succ" ident "‖" ", " ident "↦" ertTerm : ertTerm
 syntax "(" ertTerm ")" : ertTerm
 syntax "nil" " : " ertType : ertTerm
-syntax "(" ertTerm " : " ertType ")" " :: " ertTerm : ertTerm
+syntax ertTerm " :: " ertTerm : ertTerm
 
 syntax "def" ident " : " ertType " := " ertTerm : ertStatement
 syntax "def" ident " : " ertProp " := " term : ertStatement

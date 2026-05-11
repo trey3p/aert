@@ -230,12 +230,10 @@ partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → Com
     let .expr _ A_term ← elabErtType env ctx A
       | throwErrorAt A "expected type expression"
     return Untyped.Term.em A_term
-  | `(ertTerm| ($x : $A) :: $xs) => do
+  | `(ertTerm| $x :: $xs) => do
     let x_term ← elabErtTerm env ctx x
     let xs_term ← elabErtTerm env ctx xs
-    let .expr _ A_term ← elabErtType env ctx A
-      | throwErrorAt A "expected type expression"
-    return Untyped.Term.cons A_term x_term xs_term
+    return Untyped.Term.cons x_term xs_term
   | stx => throwErrorAt stx "Unsupported ERT term: {stx}"
 
 end
