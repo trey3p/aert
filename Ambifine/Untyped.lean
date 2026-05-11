@@ -77,7 +77,7 @@ inductive TermKind: List Nat -> Type
   -- Lists
   | em : TermKind [0]
   | cons : TermKind [0, 0, 0]
-  | let_list : AnnotSort -> TermKind [0, 0, 2]
+  | listrec : AnnotSort -> TermKind [1, 0, 0, 2]
 
   | eq: TermKind [0, 0, 0]
 
@@ -98,6 +98,7 @@ inductive Term: Type
   | cases (k: TermKind [0, 0, 1, 1]) (K: Term) (d: Term) (l: Term) (r: Term)
   | nr (k: TermKind [1, 0, 0, 2]) (K: Term) (e: Term) (z: Term) (s: Term)
   | nz (k: TermKind [1, 0, 2]) (K: Term) (z: Term) (s: Term)
+  | lr (k : TermKind [1, 0, 0, 2]) (K : Term) (e : Term) (em : Term) (c : Term)
 deriving BEq, Repr
 
 -- Types
@@ -126,7 +127,7 @@ deriving BEq, Repr
 @[match_pattern] abbrev Term.em := unary TermKind.em
 @[match_pattern] abbrev Term.cons := tri TermKind.cons
 @[match_pattern] abbrev Term.nil := const TermKind.nil
-@[match_pattern] abbrev Term.let_list := λk => let_bin (TermKind.let_list k)
+@[match_pattern] abbrev Term.listrec (k) := lr (TermKind.listrec k)
 @[match_pattern] abbrev Term.lam := abs TermKind.lam
 @[match_pattern] abbrev Term.app := tri TermKind.app
 @[match_pattern] abbrev Term.pair := bin TermKind.pair
