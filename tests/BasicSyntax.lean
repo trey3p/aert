@@ -7,7 +7,7 @@ def does_it_check : 5 =(ℕ) 5 := by rfl
 def test : (a : {x : ℕ | x =(ℕ) 5}) → {x : ℕ | x =(ℕ) 5} :=
   λ a : {x : ℕ | x =(ℕ) 5} .
     let {x, p} : {x : ℕ | x =(ℕ) 5} = a in
-    {5, by grind : x =(ℕ) 5}
+    {5, by grind : 5 =(ℕ) 5} : {x : ℕ | x =(ℕ) 5}
 
 def list_def : list ℕ := 3 :: 4 :: (nil : list ℕ)
 
