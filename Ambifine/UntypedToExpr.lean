@@ -90,7 +90,13 @@ def Untyped.Term.toExpr (env : List Statement) (ctx : List Expr) : Term → Meta
   withLocalDeclD (← mkFreshUserName `x) A_expr fun x => do
     let t_expr ← t.toExpr env (x :: ctx)
     mkLambdaFVars #[x] t_expr
-| Term.app _ (Term.succ) r => succAppToNat 1 r
+| Term.app _ (Term.succ) r => do
+  match r with
+  | Term.zero | Term.app _ Term.succ _ => succAppToNat 1 r
+  | _ => do
+    let r_expr ← r.toExpr env ctx
+    let succ_expr ← Term.succ.toExpr env ctx
+    return mkApp succ_expr r_expr
 | Term.app _ f x
 | Term.app_pr _ f x
 | Term.app_irrel _ f x => do
@@ -154,6 +160,21 @@ def Untyped.Term.toExpr (env : List Statement) (ctx : List Expr) : Term → Meta
   let x_expr ← x.toExpr env ctx
   let xs_expr ← xs.toExpr env ctx
   mkAppM ``List.cons #[x_expr, xs_expr]
+| Term.listrec _ _ lst nil_case cons_case => do
+  let lst_expr ← lst.toExpr env ctx
+  let nil_expr ← nil_case.toExpr env ctx
+  let lst_type ← inferType lst_expr
+  let A_expr ← match lst_type with
+    | .app (.const ``List _) A => pure A
+    | _ => throwError "listrec: subject must have type List A, got {← ppExpr lst_type}"
+  let beta ← inferType nil_expr
+  -- Build cons function: fun (hd : A) (ih : β) => body
+  -- var 0 = ih, var 1 = hd in the cons case body
+  let c_lam ← withLocalDeclD (← mkFreshUserName `hd) A_expr fun hd_var => do
+    withLocalDeclD (← mkFreshUserName `ih) beta fun ih_var => do
+      let body ← cons_case.toExpr env (ih_var :: hd_var :: ctx)
+      mkLambdaFVars #[hd_var, ih_var] body
+  mkAppM ``List.foldr #[c_lam, nil_expr, lst_expr]
 | Untyped.Term.const (Untyped.TermKind.definition defName) => do
   return mkConst defName
 | a => throwError m!"unhandled proof term {_root_.repr a}"
