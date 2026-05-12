@@ -32,7 +32,7 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
   match e with
   | Term.proof k p => do
     let p_expr ← p.toExpr ρ fvars
-    let k_ty ← Meta.inferType (mkAppN k fvars.toArray)
+    let k_ty ← Meta.inferType (mkAppN k fvars.toArray.reverse)
     if ← isDefEq k_ty p_expr then
       return .expr .prop p
     else
@@ -53,6 +53,10 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
   | Term.const TermKind.zero  => return .expr .type Term.nats
   -- succ : nats → nats  (pi nats nats is correct since nats is closed)
   | Term.const TermKind.succ  => return .expr .type (Term.abs TermKind.pi Term.nats Term.nats)
+  | Term.const (TermKind.definition name) => do
+    match ρ.find? (·.name == name) with
+    | some statement => return .expr .type statement.type
+    | none => throwError m!"Unknown definition {name}"
   --| Term.const TermKind.triv  => return .expr .prop Term.top
 
   -- ── Type formers ──────────────────────────────────────────────────────────

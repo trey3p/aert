@@ -18,6 +18,10 @@ def Statement.name : Statement → Name
 | defn name _ _ => name
 | thm name _ _ => name
 
+def Statement.type : Statement → Untyped.Term
+| defn _ type _ => type
+| thm _ type _ => type
+
 def succAppToNat (acc : Nat): Untyped.Term → MetaM Expr
 | Untyped.Term.zero => return q($acc)
 | Untyped.Term.app _ (Untyped.Term.succ) r => succAppToNat (acc + 1) r
@@ -33,7 +37,7 @@ def Untyped.Term.toExpr (env : List Statement) (ctx : List Expr) : Term → Meta
 | Term.nil => return q(())
 | Term.zero => return q(0)
 | Term.succ => return q(Nat.succ)
-| Term.proof e _ => return e
+| Term.proof e _ => return mkAppN e ctx.toArray.reverse
 | Term.var v =>
   match ctx[v]? with
   | some e => return e
@@ -97,7 +101,16 @@ def Untyped.Term.toExpr (env : List Statement) (ctx : List Expr) : Term → Meta
   let l_expr ← l.toExpr env ctx
   let r_expr ← r.toExpr env ctx
   mkAppM ``Sigma.mk #[l_expr, r_expr]
-| Term.elem l r _
+| Term.elem val p (Term.set dom pred) => do
+  let dom_expr ← dom.toExpr env ctx
+  let pred_lam ← withLocalDeclD (← mkFreshUserName `x) dom_expr fun x => do
+    let pred_expr ← pred.toExpr env (x :: ctx)
+    mkLambdaFVars #[x] pred_expr
+  let val_expr ← val.toExpr env ctx
+  let proof_expr ← p.toExpr env ctx
+  mkAppOptM ``Subtype.mk #[some dom_expr, some pred_lam, some val_expr, some proof_expr]
+| e@(Term.elem _ _ _) => do
+  throwError m!"invalid type of elem {_root_.repr e}"
 | Term.repr l r => do
   let l_expr ← l.toExpr env ctx
   let r_expr ← r.toExpr env ctx
@@ -115,8 +128,9 @@ def Untyped.Term.toExpr (env : List Statement) (ctx : List Expr) : Term → Meta
 | Term.let_set _ _ e e'
 | Term.let_repr _ _ e e' => do
   let e_expr ← e.toExpr env ctx
-  let e'_expr ← e'.toExpr env ctx
-  mkAppM ``Subtype.casesOn #[e_expr, e'_expr]
+  let val_proj  := mkProj ``Subtype 0 e_expr
+  let prop_proj := mkProj ``Subtype 1 e_expr
+  e'.toExpr env (prop_proj :: val_proj :: ctx)
 | Term.case _ _ d l r => do
   let d_expr ← d.toExpr env ctx
   let l_expr ← l.toExpr env ctx
@@ -127,7 +141,22 @@ def Untyped.Term.toExpr (env : List Statement) (ctx : List Expr) : Term → Meta
   let z_expr ← z.toExpr env ctx
   let s_expr ← s.toExpr env ctx
   mkAppM ``Nat.rec #[z_expr, s_expr, e_expr]
-| _ => throwError "unhandled proof term"
+| Term.list A => do
+  let A_expr ← A.toExpr env ctx
+  mkAppM ``List #[A_expr]
+| Term.em LA => do
+  let LA_expr : Q(Type) ←  LA.toExpr env ctx
+  match LA_expr with
+  | ~q(List $A) => do
+    mkAppOptM ``List.nil #[A]
+  | _ => throwError "invalid type of list"
+| Term.cons x xs => do
+  let x_expr ← x.toExpr env ctx
+  let xs_expr ← xs.toExpr env ctx
+  mkAppM ``List.cons #[x_expr, xs_expr]
+| Untyped.Term.const (Untyped.TermKind.definition defName) => do
+  return mkConst defName
+| a => throwError m!"unhandled proof term {_root_.repr a}"
 
 /--
   Given a list of `Term` representing a context,

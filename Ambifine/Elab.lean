@@ -129,7 +129,8 @@ partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → Com
     let proof ← liftTermElabM $
       withCtxToLocalCtx env ctx [] fun fvars => do
         let expectedType ← P_term.toExpr env fvars
-        Term.elabTermAndSynthesize a (some expectedType)
+        let proof ← Term.elabTermAndSynthesize a (some expectedType)
+        mkLambdaFVars fvars.toArray.reverse proof
     /- `app_pr` expects the type of the function to be given
     - We leave a placeholder of `unit` there so that it can be inferred later. -/
     return Untyped.Term.app_pr Untyped.Term.unit f_term (Untyped.Term.proof proof P_term)
@@ -174,7 +175,7 @@ partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → Com
       withCtxToLocalCtx env ctx [] fun fvars => do
       let expectedType ← P_term.toExpr env fvars
       let proof ← Term.elabTermAndSynthesize p (some expectedType)
-      mkLambdaFVars fvars.toArray proof
+      mkLambdaFVars fvars.toArray.reverse proof
     let .expr _ T_term ← elabErtType env ctx T | throwErrorAt T "expected expression"
     return Untyped.Term.elem x_term (Untyped.Term.proof p_term P_term) T_term
   | `(ertTerm| let {$a, $b} : $A = $x in $e) => do
@@ -238,12 +239,28 @@ partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → Com
 
 end
 
+def addStatementToLeanEnv (env : Env) (name : Name) (type term : Untyped.Term) :
+    CommandElabM Unit := do
+  let typeExpr ← liftTermElabM $ type.toExpr env []
+  let termExpr ← liftTermElabM $ term.toExpr env []
+  liftTermElabM $ addAndCompile <| .defnDecl {
+    name        := name
+    levelParams := []
+    type        := typeExpr
+    value       := termExpr
+    hints       := .regular 0
+    safety      := .safe
+  }
+  liftTermElabM $ enableRealizationsForConst name
+  elabCommand (← `(command| attribute [grind] $(mkIdent name)))
+
 def elabErtStatement (env : List Statement) : Syntax → CommandElabM Statement
   | `(ertStatement| def $name : $ty:ertType := $body) => do
     let annot@(.expr _ type) ← elabErtType env [] ty | throwErrorAt ty "expected a type"
     let term ← elabErtTerm env [] body
     try
       liftTermElabM $ Check.check env term annot
+      addStatementToLeanEnv env name.getId type term
       return .defn name.getId type term
     catch msg =>
       throwErrorAt name msg.toMessageData
