@@ -35,12 +35,17 @@ def Term.lift (cutoff shift : Nat) : Term → Term
 def Term.wk1 (t : Term) : Term := t.lift 0 1
 def Term.wkn (n : Nat) (t : Term) : Term := t.lift 0 n
 
+def _root_.Hyp.wk1 : Hyp → Hyp
+| .gst ty => .gst ty.wk1
+| .type ty => .type ty.wk1
+| .prop ty => .prop ty
+
 -- Computable analogue of HasVar: walk the context, applying wk1 at each step
 -- so the returned type is valid in the full context (not just the tail).
-def lookupVar : Ctx → Nat → Option (HypKind × Term)
+def lookupVar : Ctx → Nat → Option Hyp
   | [],     _     => none
-  | h :: _, 0     => some (h.kind, h.ty.wk1)
-  | _ :: Γ, n + 1 => lookupVar Γ n |>.map (fun (k, A) => (k, A.wk1))
+  | h :: _, 0     => some h.wk1
+  | _ :: Γ, n + 1 => lookupVar Γ n |>.map (fun h => h.wk1)
 
 def Subst := Nat → Term
 

@@ -6,15 +6,15 @@ inductive HypKind
   | gst -- Refinement
 deriving DecidableEq, BEq, Repr
 
-structure Hyp where
-  ty : Term
-  kind : HypKind
-deriving Repr
+inductive Hyp where
+| gst (ty : Term)
+| type (ty : Term)
+| prop (ty : Lean.Expr)
 
-abbrev Hyp.val (A: Term) (s: AnnotSort) := Hyp.mk A (HypKind.val s)
-abbrev Hyp.gst (A: Term) := Hyp.mk A HypKind.gst
 
 abbrev Ctx := List Hyp
 
--- Make every binding ghost a val.
-def Ctx.upgrade (Γ : Ctx) : Ctx := Γ.map fun h => Hyp.val h.ty (AnnotSort.type)
+def Ctx.upgrade (Γ : Ctx) : Ctx := Γ.map fun h =>
+  match h with
+  | .gst ty => .type ty
+  | e => e

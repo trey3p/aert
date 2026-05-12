@@ -5,7 +5,9 @@ import Ambifine.Untyped
 import Ambifine.UntypedToExpr
 import Ambifine.Subst
 import Lean
+import Qq
 open Lean Meta Elab Command
+open Qq
 
 private def buildNat : Nat → Untyped.Term
   | 0 => Untyped.Term.zero
@@ -60,41 +62,12 @@ partial def elabErtType (env : List Statement)
   | stx => throwErrorAt stx "Unsupported ERT type: {stx}"
 
 partial def elabErtProp (env : List Statement)
-    (ctx : NamedCtx) : Syntax → CommandElabM Untyped.Annot
-  | `(ertProp| ⊤) => return .expr .prop Untyped.Term.top
-  | `(ertProp| ⊥) => return .expr .prop Untyped.Term.bot
-  | `(ertProp| ($x : $P) ⇒ $Q) => do
-    let .expr _ P_term ← elabErtProp env ctx P | throwErrorAt P "expected prop expression"
-    let xName := x.getId
-    let .expr _ Q_term ← elabErtProp env ((xName, Hyp.val P_term .prop) :: ctx) Q | throwErrorAt Q "expected prop expression"
-    return .expr .prop (Untyped.Term.dimplies P_term Q_term)
-  | `(ertProp| ($x : $P) ∧ $Q) => do
-    let .expr _ P_term ← elabErtProp env ctx P | throwErrorAt P "expected prop expression"
-    let xName := x.getId
-    let .expr _ Q_term ← elabErtProp env ((xName, Hyp.val P_term .prop) :: ctx) Q | throwErrorAt Q "expected prop expression"
-    return .expr .prop (Untyped.Term.dand P_term Q_term)
-  | `(ertProp| $P ∨ $Q) => do
-    let .expr _ P_term ← elabErtProp env ctx P | throwErrorAt P "expected prop expression"
-    let .expr _ Q_term ← elabErtProp env ctx Q | throwErrorAt Q "expected prop expression"
-    return .expr .prop (Untyped.Term.or P_term Q_term)
-  | `(ertProp| ∀ $x : $A, $P) => do
-    let .expr _ A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
-    let xName := x.getId
-    let .expr _ P_term ← elabErtProp env ((xName, Hyp.val A_term .type) :: ctx) P | throwErrorAt P "expected prop expression"
-    return .expr .prop (Untyped.Term.forall_ A_term P_term)
-  | `(ertProp| ∃ $x : $A, $P) => do
-    let .expr _ A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
-    let xName := x.getId
-    let .expr _ P_term ← elabErtProp env ((xName, Hyp.val A_term .type) :: ctx) P | throwErrorAt P "expected prop expression"
-    return .expr .prop (Untyped.Term.exists_ A_term P_term)
-  | `(ertProp| $t:ertTerm =($A:ertType) $u:ertTerm) => do
-    let t_term ← elabErtTerm env ctx t
-    let u_term ← elabErtTerm env ctx u
-    let .expr _ A_term ← elabErtType env ctx A
-      | throwErrorAt A m!"Expected type, got {repr A}"
-    return .expr .prop (Untyped.Term.eq A_term t_term u_term)
-  | `(ertProp| ($P)) => elabErtProp env ctx P
-  | stx => throwErrorAt stx "Unsupported ERT prop: {stx}"
+    (ctx : NamedCtx) (stx : Syntax) : CommandElabM Untyped.Annot := do
+  let prop ← liftTermElabM $
+    withCtxToLocalCtx env ctx [] fun fvars => do
+      let prop ← Term.elabTermAndSynthesize stx (some q(Prop))
+      mkLambdaFVars fvars.toArray.reverse prop
+  return .expr .prop prop
 
 partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → CommandElabM Untyped.Term
   | `(ertTerm| succ) => return Untyped.Term.succ

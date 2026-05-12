@@ -11,7 +11,8 @@ namespace Untyped
 -- Mirrors old-ert's Annot: distinguishes "e is a type/prop" from "e has type A"
 inductive Annot where
   | sort : AnnotSort → Annot
-  | expr : AnnotSort → Term → Annot
+  | exprType : Term → Annot
+  | exprProp : Expr → Annot
 deriving BEq, Repr
 
 -- inferType mirrors HasType as a decision procedure.
@@ -31,10 +32,9 @@ Invariant:
 def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot :=
   match e with
   | Term.proof k p => do
-    let p_expr ← p.toExpr ρ fvars
     let k_ty ← Meta.inferType (mkAppN k fvars.toArray.reverse)
-    if ← isDefEq k_ty p_expr then
-      return .expr .prop p
+    if ← isDefEq k_ty p then
+      return .exprProp p
     else
       throwError m!"proof: type mismatch"
   -- Variables: ghost bindings are not directly usable as values
