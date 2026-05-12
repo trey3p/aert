@@ -20,7 +20,7 @@ def list_refine : (a : {x : list ℕ | x =(list ℕ) list_def}) →
 def length : (x : list ℕ) → ℕ :=
   λ x : list ℕ . listrec [(x : list ℕ) ↦ ℕ] x
     | 0
-    | rest, ih ↦ ((succ : (n : ℕ) → ℕ) ih)
+    | hd, tl, ih ↦ ((succ : (n : ℕ) → ℕ) ih)
 
 def length_example : ((length : (x : list ℕ) → ℕ) list_def) =(ℕ) 2 := by
   grind

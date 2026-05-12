@@ -94,13 +94,16 @@ partial def eval : Term → Term
       eval ((s.subst0 ih).subst0 n)
     | ev => Term.natrec k K ev z s
 
-  -- ── List recursion: em ↦ nil_case;  cons x xs ↦ c[listrec(xs) / 0][x / 0] -
+  -- ── List recursion ───────────────────────────────────────────────────────
+  -- em A ↦ nil_case
+  -- cons x xs ↦ cons_case[ih/0][xs/0][x/0]
+  --   where cons_case has 3 binders, var 0 = ih, var 1 = tail, var 2 = head
   | Term.listrec k K e nil_case cons_case =>
     match eval e with
     | Term.em _ => eval nil_case
     | Term.cons x xs =>
       let ih := Term.listrec k K xs nil_case cons_case
-      eval ((cons_case.subst0 ih).subst0 x)
+      eval (((cons_case.subst0 ih).subst0 xs).subst0 x)
     | ev => Term.listrec k K ev nil_case cons_case
 
   -- ── Anything else (ir / beta_zero / beta_succ / let_bin_beta / …) ────────

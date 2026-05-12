@@ -77,7 +77,8 @@ inductive TermKind: List Nat -> Type
   -- Lists
   | em : TermKind [0]
   | cons : TermKind [0, 0]
-  | listrec : AnnotSort -> TermKind [1, 0, 0, 2]
+  -- cons case binds head, tail, ih (3 binders)
+  | listrec : AnnotSort -> TermKind [1, 0, 0, 3]
 
   | eq: TermKind [0, 0, 0]
 
@@ -98,7 +99,7 @@ inductive Term: Type
   | cases (k: TermKind [0, 0, 1, 1]) (K: Term) (d: Term) (l: Term) (r: Term)
   | nr (k: TermKind [1, 0, 0, 2]) (K: Term) (e: Term) (z: Term) (s: Term)
   | nz (k: TermKind [1, 0, 2]) (K: Term) (z: Term) (s: Term)
-  | lr (k : TermKind [1, 0, 0, 2]) (K : Term) (e : Term) (em : Term) (c : Term)
+  | lr (k : TermKind [1, 0, 0, 3]) (K : Term) (e : Term) (em : Term) (c : Term)
 deriving BEq, Repr
 
 -- Types

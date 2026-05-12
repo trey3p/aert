@@ -502,31 +502,49 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
                 else throwError m!"cons: tail {repr xs} must have type list {repr x_ty}, got {repr xs_ty}"
           | a => throwError m!"cons: tail {repr xs} must have type list {repr x_ty}, got {repr a}"
     | a => throwError m!"cons: head {repr x} must have a type, got {repr a}"
+  -- listrec .type C e nil_case cons_case : C.subst0 e
+  --   e         : list A
+  --   C         : type under (val (list A) type) :: Γ              (motive, var 0 = the list)
+  --   nil_case  : term (C.subst0 (em A))                            (base)
+  --   cons_case : term ((C.lift 1 2).alpha0 (cons (var 2) (var 1))) (step)
+  --       in  (val (C.lift 1 1) type) :: (val (list A).wk1 type) :: (val A type) :: Γ
+  --       conv: var 0 = ih, var 1 = tail, var 2 = head
   | Term.listrec _ C e nil_case cons_case => do
-    match ← inferType Γ ρ fvars C with
-    | .sort .type =>
-      match ← inferType Γ ρ fvars e with
-      | .expr .type (Term.list A) =>
-        let nil_ty := C.subst0 Term.nil
-        let cons_ty := (C.lift 1 1).alpha0 (Term.bin TermKind.pair (Term.var 1) (Term.var 0))
+    match ← inferType Γ ρ fvars e with
+    | .expr .type (Term.list A) =>
+      let A_expr     ← A.toExpr ρ fvars
+      let list_A_expr ← (Term.list A).toExpr ρ fvars
+      -- Check the motive under the list binder
+      let res_C ← withLocalDeclD (← mkFreshUserName `xs) list_A_expr fun xs_fvar =>
+        inferType (Hyp.val (Term.list A) .type :: Γ) ρ (xs_fvar :: fvars) C
+      match res_C with
+      | .sort .type =>
+        let nil_ty := C.subst0 (Term.em A)
         match ← inferType Γ ρ fvars nil_case with
         | .expr .type nil_case_ty =>
-            if nil_case_ty == nil_ty then
-              let cons_ctx := Hyp.val A .type :: Hyp.val C .type :: Γ
-              let Aexpr ← A.toExpr ρ fvars
-              let Cexpr ← C.toExpr ρ fvars
-              let res_cons_case ← withLocalDeclD (← mkFreshUserName `x) Aexpr fun x_fvar => do
-                withLocalDeclD (← mkFreshUserName `ih) Cexpr fun ih_fvar =>
-                  inferType cons_ctx ρ (ih_fvar :: x_fvar :: fvars) cons_case
-              match res_cons_case with
-              | .expr .type cons_case_ty =>
-                  if cons_case_ty == cons_ty then return .expr .type (C.subst0 e)
-                  else throwError m!"listrec: cons case type mismatch: expected {repr cons_ty}, got {repr cons_case_ty}"
-              | a => throwError m!"listrec: cons case {repr cons_case} must have a type, got {repr a}"
-            else throwError m!"listrec: nil case type mismatch: expected {repr nil_ty}, got {repr nil_case_ty}"
+          if nil_case_ty == nil_ty then
+            let cons_ctx :=
+              Hyp.val (C.lift 1 1) .type ::
+              Hyp.val (Term.list A).wk1 .type ::
+              Hyp.val A .type :: Γ
+            let cons_ty :=
+              (C.lift 1 2).alpha0
+                (Term.bin TermKind.cons (Term.var 2) (Term.var 1))
+            let res_cons_case ←
+              withLocalDeclD (← mkFreshUserName `hd) A_expr fun hd_fvar => do
+                withLocalDeclD (← mkFreshUserName `tl) list_A_expr fun tl_fvar => do
+                  let C_at_tl ← C.toExpr ρ (tl_fvar :: fvars)
+                  withLocalDeclD (← mkFreshUserName `ih) C_at_tl fun ih_fvar =>
+                    inferType cons_ctx ρ (ih_fvar :: tl_fvar :: hd_fvar :: fvars) cons_case
+            match res_cons_case with
+            | .expr .type cons_case_ty =>
+                if cons_case_ty == cons_ty then return .expr .type (C.subst0 e)
+                else throwError m!"listrec: cons case type mismatch: expected {repr cons_ty}, got {repr cons_case_ty}"
+            | a => throwError m!"listrec: cons case {repr cons_case} must have a type, got {repr a}"
+          else throwError m!"listrec: nil case type mismatch: expected {repr nil_ty}, got {repr nil_case_ty}"
         | a => throwError m!"listrec: nil case {repr nil_case} must have a type, got {repr a}"
-      | a => throwError m!"listrec: subject {repr e} must have type list, got {repr a}"
-    | a => throwError m!"listrec: motive {repr C} must be a type, got {repr a}"
+      | a => throwError m!"listrec: motive {repr C} must be a type, got {repr a}"
+    | a => throwError m!"listrec: subject {repr e} must have type list, got {repr a}"
   -- ── Not inferrable without annotation ────────────────────────────────────
   -- abort       : return type is arbitrary, no annotation in term
   -- ir forms    : equality proofs (trans, cong, prir, …)

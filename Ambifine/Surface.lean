@@ -56,7 +56,7 @@ syntax "(" ertTerm ")" : ertTerm
 syntax "nil" " : " ertType : ertTerm
 syntax ertTerm " :: " ertTerm : ertTerm
 syntax "listrec" "[" "(" ident " : " ertType ")" "↦" ertType "]" ertTerm "|" ertTerm
-  "|" ident ", " ident "↦" ertTerm : ertTerm
+  "|" ident ", " ident ", " ident "↦" ertTerm : ertTerm
 
 syntax "def" ident " : " ertType " := " ertTerm : ertStatement
 syntax "def" ident " : " ertProp " := " term : ertStatement
