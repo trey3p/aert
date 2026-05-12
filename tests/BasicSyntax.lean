@@ -17,7 +17,10 @@ def list_refine : (a : {x : list ℕ | x =(list ℕ) list_def}) →
     {3 :: 4 :: (nil : list ℕ),
       by grind : (3 :: 4 :: (nil : list ℕ) =(list ℕ) list_def)} : {x : list ℕ | x =(list ℕ) list_def}
 
-def list_length : (x : list ℕ) → ℕ :=
+def length : (x : list ℕ) → ℕ :=
   λ x : list ℕ . listrec [(x : list ℕ) ↦ ℕ] x
     | 0
-    | rest, ih ↦ (succ ih)
+    | rest, ih ↦ ((succ : (n : ℕ) → ℕ) ih)
+
+def length_example : ((length : (x : list ℕ) → ℕ) list_def) =(ℕ) 2 := by
+  grind
