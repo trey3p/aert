@@ -29,19 +29,6 @@ inductive TermKind: List Nat -> Type
   --TODO: consider merging with (sigma, ghost, type)
   | union: TermKind [0, 1]
 
-  -- Propositions
-  | top: TermKind []
-  | bot: TermKind []
-  --TODO: consider merging with (pi, prop, prop)
-  | dimplies: TermKind [0, 1]
-  --TODO: consider dependent and, analogous to (sigma, prop, prop)
-  | dand: TermKind [0, 1]
-  | or: TermKind [0, 0]
-  --TODO: consider merging with (pi, type, prop) == (pi, ghost, prop)
-  | forall_: TermKind [0, 1]
-  --TODO: consider merging with (sigma, type, prop) == (sigma, ghost, prop)
-  | exists_: TermKind [0, 1]
-
   -- Terms
   | nil: TermKind []
   -- Consider merging with intro/elim for (pi, type, type)
@@ -80,20 +67,22 @@ inductive TermKind: List Nat -> Type
   -- cons case binds head, tail, ih (3 binders)
   | listrec : AnnotSort -> TermKind [1, 0, 0, 3]
 
-  | eq: TermKind [0, 0, 0]
-
   | definition (name : Lean.Name) : TermKind []
 deriving BEq, Repr
 
 inductive Term: Type
   | var (v: Nat)
   | proof (proof Ty : Lean.Expr)
+  /-- Embeds a closed Lean.Expr (a lambda over the surrounding context's fvars).
+      Used to lift Lean Props into Term-typed slots (e.g. set predicates). -/
+  | expr (e : Lean.Expr)
   | const (c: TermKind [])
   | unary (k: TermKind [0]) (t: Term)
   | let_bin (k: TermKind [0, 0, 2]) (P: Term) (e: Term) (e': Term)
   | let_bin_beta (k: TermKind [0, 0, 0, 2]) (P: Term) (l r: Term) (e': Term)
   | bin (k: TermKind [0, 0]) (l: Term) (r: Term)
   | abs (k: TermKind [0, 1]) (A: Term) (t: Term)
+  | pabs (k: TermKind [0, 1]) (A: Lean.Expr) (t: Term)
   | tri (k: TermKind [0, 0, 0]) (A: Term) (l: Term) (r: Term)
   | ir (k: TermKind [0, 0, 1]) (x: Term) (y: Term) (P: Term)
   | cases (k: TermKind [0, 0, 1, 1]) (K: Term) (d: Term) (l: Term) (r: Term)
@@ -109,20 +98,10 @@ deriving BEq, Repr
 @[match_pattern] abbrev Term.sigma := abs TermKind.sigma
 @[match_pattern] abbrev Term.coprod := bin TermKind.coprod
 @[match_pattern] abbrev Term.set := abs TermKind.set
-@[match_pattern] abbrev Term.assume := abs TermKind.assume
+@[match_pattern] abbrev Term.assume := pabs TermKind.assume
 @[match_pattern] abbrev Term.intersect := abs TermKind.intersect
 @[match_pattern] abbrev Term.union := abs TermKind.union
 @[match_pattern] abbrev Term.list := unary TermKind.list
-
--- Propositions
-@[match_pattern] abbrev Term.top := const TermKind.top
-@[match_pattern] abbrev Term.bot := const TermKind.bot
-@[match_pattern] abbrev Term.dand := abs TermKind.dand
-@[match_pattern] abbrev Term.or := bin TermKind.or
-@[match_pattern] abbrev Term.dimplies := abs TermKind.dimplies
-@[match_pattern] abbrev Term.forall_ := abs TermKind.forall_
-@[match_pattern] abbrev Term.exists_ := abs TermKind.exists_
-@[match_pattern] abbrev Term.eq := tri TermKind.eq
 
 -- Terms
 @[match_pattern] abbrev Term.em := unary TermKind.em
@@ -138,7 +117,7 @@ deriving BEq, Repr
 /-- Constructs a term of type set. E.g. `{a, p} : {x : ℕ | x = 5}` -/
 @[match_pattern] abbrev Term.elem := tri TermKind.elem
 @[match_pattern] abbrev Term.let_set := λk => let_bin (TermKind.let_set k)
-@[match_pattern] abbrev Term.lam_pr := abs TermKind.lam_pr
+@[match_pattern] abbrev Term.lam_pr := pabs TermKind.lam_pr
 @[match_pattern] abbrev Term.app_pr := tri TermKind.app_pr
 @[match_pattern] abbrev Term.lam_irrel := abs TermKind.lam_irrel
 @[match_pattern] abbrev Term.app_irrel := tri TermKind.app_irrel

@@ -11,16 +11,16 @@ abbrev NamedCtx := List NamedHyp
 
 inductive Statement where
 | defn (name : Name) (type : Untyped.Term) (term : Untyped.Term)
-| thm (name : Name) (type : Untyped.Term) (proof : Expr)
+| thm (name : Name) (type : Expr) (proof : Expr)
 deriving BEq
 
 def Statement.name : Statement → Name
 | defn name _ _ => name
 | thm name _ _ => name
 
-def Statement.type : Statement → Untyped.Term
-| defn _ type _ => type
-| thm _ type _ => type
+def Statement.type : Statement → Untyped.Term ⊕ Expr
+| defn _ type _ => .inl type
+| thm _ type _ => .inr type
 
 def succAppToNat (acc : Nat): Untyped.Term → MetaM Expr
 | Untyped.Term.zero => return q($acc)
@@ -32,23 +32,24 @@ abbrev Env := List Statement
 def Untyped.Term.toExpr (env : List Statement) (ctx : List Expr) : Term → MetaM Expr
 | Term.unit => return q(Unit)
 | Term.nats => return q(Nat)
-| Term.top => return q(True)
-| Term.bot => return q(False)
 | Term.nil => return q(())
 | Term.zero => return q(0)
 | Term.succ => return q(Nat.succ)
-| Term.proof e _ => return mkAppN e ctx.toArray.reverse
+| Term.proof e _ => return e.instantiate ctx.toArray
+| Term.expr e => return e.instantiate ctx.toArray
 | Term.var v =>
   match ctx[v]? with
   | some e => return e
   | none => throwError "variable index {v} out of range (context size {ctx.length})"
 | Term.pi dom cod
-| Term.assume dom cod
-| Term.intersect dom cod
-| Term.dimplies dom cod
-| Term.forall_ dom cod => do
+| Term.intersect dom cod => do
   let dom_expr ← dom.toExpr env ctx
   withLocalDeclD (← mkFreshUserName `x) dom_expr fun x => do
+    let cod_expr ← cod.toExpr env (x :: ctx)
+    mkForallFVars #[x] cod_expr
+| Term.assume P_expr cod => do
+  let P_inst := P_expr.instantiate ctx.toArray
+  withLocalDeclD (← mkFreshUserName `x) P_inst fun x => do
     let cod_expr ← cod.toExpr env (x :: ctx)
     mkForallFVars #[x] cod_expr
 | Term.sigma dom cod => do
@@ -61,33 +62,29 @@ def Untyped.Term.toExpr (env : List Statement) (ctx : List Expr) : Term → Meta
   let left_expr ← left.toExpr env ctx
   let right_expr ← right.toExpr env ctx
   mkAppM ``Sum #[left_expr, right_expr]
-| Term.set dom cod
+| Term.set A (Term.expr P_expr) => do
+  let A_expr ← A.toExpr env ctx
+  let pred_lam ← withLocalDeclD (← mkFreshUserName `x) A_expr fun x_fvar => do
+    let body := P_expr.instantiate (x_fvar :: ctx).toArray
+    mkLambdaFVars #[x_fvar] body
+  mkAppM ``Subtype #[pred_lam]
+| Term.set _ b =>
+  throwError m!"invalid set predicate (must be Term.expr) {_root_.repr b}"
 | Term.union dom cod => do
   let dom_expr ← dom.toExpr env ctx
   withLocalDeclD (← mkFreshUserName `x) dom_expr fun x => do
     let cod_expr ← cod.toExpr env (x :: ctx)
     let lam ← mkLambdaFVars #[x] cod_expr
     mkAppM ``Subtype #[lam]
-| Term.dand dom cod
-| Term.exists_ dom cod => do
-  let dom_expr ← dom.toExpr env ctx
-  withLocalDeclD (← mkFreshUserName `x) dom_expr fun x => do
-    let cod_expr ← cod.toExpr env (x :: ctx)
-    let lam ← mkLambdaFVars #[x] cod_expr
-    mkAppM ``Exists #[lam]
-| Term.or l r => do
-  let l_expr ← l.toExpr env ctx
-  let r_expr ← r.toExpr env ctx
-  mkAppM ``Or #[l_expr, r_expr]
-| Term.eq _ x y => do
-  let x_expr ← x.toExpr env ctx
-  let y_expr ← y.toExpr env ctx
-  mkAppM ``Eq #[x_expr, y_expr]
 | Term.lam A t
-| Term.lam_pr A t
 | Term.lam_irrel A t => do
   let A_expr ← A.toExpr env ctx
   withLocalDeclD (← mkFreshUserName `x) A_expr fun x => do
+    let t_expr ← t.toExpr env (x :: ctx)
+    mkLambdaFVars #[x] t_expr
+| Term.lam_pr P_expr t => do
+  let P_inst := P_expr.instantiate ctx.toArray
+  withLocalDeclD (← mkFreshUserName `x) P_inst fun x => do
     let t_expr ← t.toExpr env (x :: ctx)
     mkLambdaFVars #[x] t_expr
 | Term.app _ (Term.succ) r => do
@@ -107,11 +104,11 @@ def Untyped.Term.toExpr (env : List Statement) (ctx : List Expr) : Term → Meta
   let l_expr ← l.toExpr env ctx
   let r_expr ← r.toExpr env ctx
   mkAppM ``Sigma.mk #[l_expr, r_expr]
-| Term.elem val p (Term.set dom pred) => do
+| Term.elem val p (Term.set dom (Term.expr P_expr)) => do
   let dom_expr ← dom.toExpr env ctx
-  let pred_lam ← withLocalDeclD (← mkFreshUserName `x) dom_expr fun x => do
-    let pred_expr ← pred.toExpr env (x :: ctx)
-    mkLambdaFVars #[x] pred_expr
+  let pred_lam ← withLocalDeclD (← mkFreshUserName `x) dom_expr fun x_fvar => do
+    let body := P_expr.instantiate (x_fvar :: ctx).toArray
+    mkLambdaFVars #[x_fvar] body
   let val_expr ← val.toExpr env ctx
   let proof_expr ← p.toExpr env ctx
   mkAppOptM ``Subtype.mk #[some dom_expr, some pred_lam, some val_expr, some proof_expr]
@@ -190,8 +187,14 @@ def withCtxToLocalCtx {α : Type} (env : List Statement) (ctx : NamedCtx) (acc :
   | [] => k acc
   | (name, t) :: ts =>
     withCtxToLocalCtx env ts acc fun acc' => do
-      withLocalDeclD name (← t.ty.toExpr env acc') fun x =>
-        k (x :: acc')
+      match t with
+      | .prop ty =>
+        withLocalDeclD name (ty.instantiate acc'.toArray) fun x =>
+          k (x :: acc')
+      | .gst ty
+      | .type ty =>
+        withLocalDeclD name (← ty.toExpr env acc') fun x =>
+          k (x :: acc')
 
 /-- Variant that does not require names to be given.  -/
 def withCtxToLocalCtx' {α : Type} (env : List Statement) (ctx : Ctx) (acc : List Expr)
@@ -200,5 +203,11 @@ def withCtxToLocalCtx' {α : Type} (env : List Statement) (ctx : Ctx) (acc : Lis
   | [] => k acc
   | t :: ts =>
     withCtxToLocalCtx' env ts acc fun acc' => do
-      withLocalDeclD (← mkFreshUserName `x) (← t.ty.toExpr env acc') fun x =>
-        k (x :: acc')
+      match t with
+      | .prop ty =>
+        withLocalDeclD (← mkFreshUserName `x) (ty.instantiate acc'.toArray) fun x =>
+          k (x :: acc')
+      | .gst ty
+      | .type ty =>
+        withLocalDeclD (← mkFreshUserName `x) (← ty.toExpr env acc') fun x =>
+          k (x :: acc')

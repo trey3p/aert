@@ -17,48 +17,53 @@ mutual
 
 partial def elabErtType (env : List Statement)
     (ctx : NamedCtx) : Syntax → CommandElabM Untyped.Annot
-  | `(ertType| 𝟙) => return .expr .type Untyped.Term.unit
+  | `(ertType| 𝟙) => return .exprType Untyped.Term.unit
   | `(ertType| ($x : $A) → $B) => do
-    let .expr _ A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
-    let A_hyp : Hyp := ⟨A_term, .val .type⟩
+    let .exprType A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
     let xName := x.getId
-    let .expr _ B_term ← elabErtType env ((xName, A_hyp) :: ctx) B | throwErrorAt B "expected type expression"
-    return .expr .type (Untyped.Term.pi A_term B_term)
+    let .exprType B_term ← elabErtType env ((xName, Hyp.type A_term) :: ctx) B
+      | throwErrorAt B "expected type expression"
+    return .exprType (Untyped.Term.pi A_term B_term)
   | `(ertType| ($x : $A) × $B) => do
-    let .expr _ A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
+    let .exprType A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
     let xName := x.getId
-    let .expr _ B_term ← elabErtType env ((xName, Hyp.val A_term .type) :: ctx) B | throwErrorAt B "expected type expression"
-    return .expr .type (Untyped.Term.sigma A_term B_term)
+    let .exprType B_term ← elabErtType env ((xName, Hyp.type A_term) :: ctx) B
+      | throwErrorAt B "expected type expression"
+    return .exprType (Untyped.Term.sigma A_term B_term)
   | `(ertType| $A + $B) => do
-    let .expr _ A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
-    let .expr _ B_term ← elabErtType env ctx B | throwErrorAt B "expected type expression"
-    return .expr .type (Untyped.Term.coprod A_term B_term)
+    let .exprType A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
+    let .exprType B_term ← elabErtType env ctx B | throwErrorAt B "expected type expression"
+    return .exprType (Untyped.Term.coprod A_term B_term)
   | `(ertType| ($x : $P) ⇒ $B) => do
-    let .expr _ P_term ← elabErtProp env ctx P | throwErrorAt P "expected prop expression"
+    let .exprProp P_expr ← elabErtProp env ctx P | throwErrorAt P "expected prop expression"
     let xName := x.getId
-    let .expr _ B_term ← elabErtType env ((xName, Hyp.val P_term .prop) :: ctx) B | throwErrorAt B "expected type expression"
-    return .expr .type (Untyped.Term.assume P_term B_term)
+    let .exprType B_term ← elabErtType env ((xName, Hyp.prop P_expr) :: ctx) B
+      | throwErrorAt B "expected type expression"
+    return .exprType (Untyped.Term.assume P_expr B_term)
   | `(ertType| {$x : $A | $P}) => do
-    let .expr _ A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
+    let .exprType A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
     let xName := x.getId
-    let .expr _ P_term ← elabErtProp env ((xName, Hyp.val A_term .type) :: ctx) P | throwErrorAt P "expected prop expression"
-    return .expr .type (Untyped.Term.set A_term P_term)
+    let .exprProp P_expr ← elabErtProp env ((xName, Hyp.type A_term) :: ctx) P
+      | throwErrorAt P "expected prop expression"
+    return .exprType (Untyped.Term.set A_term (Untyped.Term.expr P_expr))
   | `(ertType| ∀ $x : $A, $B) => do
-    let .expr _ A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
+    let .exprType A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
     let xName := x.getId
-    let .expr _ B_term ← elabErtType env ((xName, Hyp.val A_term .type) :: ctx) B | throwErrorAt B "expected type expression"
-    return .expr .type (Untyped.Term.intersect A_term B_term)
+    let .exprType B_term ← elabErtType env ((xName, Hyp.type A_term) :: ctx) B
+      | throwErrorAt B "expected type expression"
+    return .exprType (Untyped.Term.intersect A_term B_term)
   | `(ertType| ∃ $x : $A, $B) => do
-    let .expr _ A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
+    let .exprType A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
     let xName := x.getId
-    let .expr _ B_term ← elabErtType env ((xName, Hyp.val A_term .type) :: ctx) B | throwErrorAt B "expected type expression"
-    return .expr .type (Untyped.Term.union A_term B_term)
-  | `(ertType| ℕ) => return .expr .type Untyped.Term.nats
+    let .exprType B_term ← elabErtType env ((xName, Hyp.type A_term) :: ctx) B
+      | throwErrorAt B "expected type expression"
+    return .exprType (Untyped.Term.union A_term B_term)
+  | `(ertType| ℕ) => return .exprType Untyped.Term.nats
   | `(ertType| ($A)) => elabErtType env ctx A
   | `(ertType| list $A) => do
-    let .expr _ A_term ← elabErtType env ctx A
+    let .exprType A_term ← elabErtType env ctx A
       | throwErrorAt A "expected type expression"
-    return .expr .type (Untyped.Term.list A_term)
+    return .exprType (Untyped.Term.list A_term)
   | stx => throwErrorAt stx "Unsupported ERT type: {stx}"
 
 partial def elabErtProp (env : List Statement)
@@ -66,8 +71,8 @@ partial def elabErtProp (env : List Statement)
   let prop ← liftTermElabM $
     withCtxToLocalCtx env ctx [] fun fvars => do
       let prop ← Term.elabTermAndSynthesize stx (some q(Prop))
-      mkLambdaFVars fvars.toArray.reverse prop
-  return .expr .prop prop
+      return prop.abstract fvars.toArray.reverse
+  return .exprProp prop
 
 partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → CommandElabM Untyped.Term
   | `(ertTerm| succ) => return Untyped.Term.succ
@@ -81,38 +86,22 @@ partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → Com
       else
         throwErrorAt x "Unknown variable: {xName}"
   | `(ertTerm| λ $x : $A:ertType . $t) => do
-    let .expr _ A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
+    let .exprType A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
     let xName := x.getId
-    let t_term ← elabErtTerm env ((xName, Hyp.val A_term .type) :: ctx) t
+    let t_term ← elabErtTerm env ((xName, Hyp.type A_term) :: ctx) t
     return Untyped.Term.lam A_term t_term
-  | `(ertTerm| λ $x : $P:ertProp . $t) => do
-    let .expr _ P_term ← elabErtProp env ctx P | throwErrorAt P "expected prop expression"
-    let xName := x.getId
-    let t_term ← elabErtTerm env ((xName, Hyp.val P_term .prop) :: ctx) t
-    return Untyped.Term.lam_pr P_term t_term
   | `(ertTerm| ($f:ertTerm : $A:ertType) $a:ertTerm) => do
     let f_term ← elabErtTerm env ctx f
     let a_term ← elabErtTerm env ctx a
-    let .expr _ A_term ← elabErtType env ctx A
+    let .exprType A_term ← elabErtType env ctx A
       | throwErrorAt A m!"Expected type, got {repr A}"
     return Untyped.Term.app A_term f_term a_term
-  | `(ertTerm| $f:ertTerm ($a:term : $P:ertProp)) => do
-    let f_term ← elabErtTerm env ctx f
-    let .expr _ P_term ← elabErtProp env ctx P | throwErrorAt P "expected prop expression"
-    let proof ← liftTermElabM $
-      withCtxToLocalCtx env ctx [] fun fvars => do
-        let expectedType ← P_term.toExpr env fvars
-        let proof ← Term.elabTermAndSynthesize a (some expectedType)
-        mkLambdaFVars fvars.toArray.reverse proof
-    /- `app_pr` expects the type of the function to be given
-    - We leave a placeholder of `unit` there so that it can be inferred later. -/
-    return Untyped.Term.app_pr Untyped.Term.unit f_term (Untyped.Term.proof proof P_term)
   | `(ertTerm| ($t, $u)) => do
     let t_term ← elabErtTerm env ctx t
     let u_term ← elabErtTerm env ctx u
     return Untyped.Term.pair t_term u_term
   | `(ertTerm| let ($x, $y) : $A = $e in $b) => do
-    let .expr _ A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
+    let .exprType A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
     let (x_term, y_term) ←
       match A_term with
       | Untyped.Term.sigma x_term y_term => pure (x_term, y_term)
@@ -120,52 +109,55 @@ partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → Com
     let e_term ← elabErtTerm env ctx e
     let xName := x.getId
     let yName := y.getId
-    let b_term ← elabErtTerm env ((yName, Hyp.val y_term .type) :: (xName, Hyp.val x_term .type) :: ctx) b
+    let b_term ← elabErtTerm env
+      ((yName, Hyp.type y_term) :: (xName, Hyp.type x_term) :: ctx) b
     return Untyped.Term.let_pair .type A_term e_term b_term
   | `(ertTerm| (inl $t) : $AB:ertType) => do
-    let .expr _ AB_term ← elabErtType env ctx AB | throwErrorAt AB "expected type expression"
+    let .exprType AB_term ← elabErtType env ctx AB | throwErrorAt AB "expected type expression"
     return Untyped.Term.inj (0 : Fin 2) AB_term (← elabErtTerm env ctx t)
   | `(ertTerm| (inr $t) : $AB:ertType) => do
-    let .expr _ AB_term ← elabErtType env ctx AB | throwErrorAt AB "expected type expression"
+    let .exprType AB_term ← elabErtType env ctx AB | throwErrorAt AB "expected type expression"
     return Untyped.Term.inj (1 : Fin 2) AB_term (← elabErtTerm env ctx t)
   | `(ertTerm| cases [$x : $D ↦ $C] $d |inl ($xl : $A) ↦ $l |inr ($xr : $B) ↦ $r) => do
     let xName := x.getId
-    let .expr _ D_term ← elabErtType env ctx D | throwErrorAt D "expected type expression"
-    let .expr _ C_term ← elabErtType env ((xName, Hyp.val D_term .type) :: ctx) C | throwErrorAt C "expected type expression"
+    let .exprType D_term ← elabErtType env ctx D | throwErrorAt D "expected type expression"
+    let .exprType C_term ← elabErtType env ((xName, Hyp.type D_term) :: ctx) C
+      | throwErrorAt C "expected type expression"
     let K_term := Untyped.Term.lam D_term C_term
     let d_term ← elabErtTerm env ctx d
-    let .expr _ A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
+    let .exprType A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
     let xlName := xl.getId
-    let l_term ← elabErtTerm env ((xlName, Hyp.val A_term .type) :: ctx) l
+    let l_term ← elabErtTerm env ((xlName, Hyp.type A_term) :: ctx) l
     let xrName := xr.getId
-    let .expr _ B_term ← elabErtType env ctx B | throwErrorAt B "expected type expression"
-    let r_term ← elabErtTerm env ((xrName, Hyp.val B_term .type) :: ctx) r
+    let .exprType B_term ← elabErtType env ctx B | throwErrorAt B "expected type expression"
+    let r_term ← elabErtTerm env ((xrName, Hyp.type B_term) :: ctx) r
     return Untyped.Term.case .type K_term d_term l_term r_term
   | `(ertTerm| {$x, $p : $P} : $T) => do
     let x_term ← elabErtTerm env ctx x
-    let .expr _ P_term ← elabErtProp env ctx P | throwErrorAt P "expected prop expression"
+    let .exprProp P_expr ← elabErtProp env ctx P | throwErrorAt P "expected prop expression"
     let p_term ← liftTermElabM $ do
       withCtxToLocalCtx env ctx [] fun fvars => do
-      let expectedType ← P_term.toExpr env fvars
+      let expectedType := P_expr.instantiate fvars.toArray
       let proof ← Term.elabTermAndSynthesize p (some expectedType)
-      mkLambdaFVars fvars.toArray.reverse proof
-    let .expr _ T_term ← elabErtType env ctx T | throwErrorAt T "expected expression"
-    return Untyped.Term.elem x_term (Untyped.Term.proof p_term P_term) T_term
+      return proof.abstract fvars.toArray.reverse
+    let .exprType T_term ← elabErtType env ctx T | throwErrorAt T "expected expression"
+    return Untyped.Term.elem x_term (Untyped.Term.proof p_term P_expr) T_term
   | `(ertTerm| let {$a, $b} : $A = $x in $e) => do
-    let .expr _ A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
-    let (a_term, b_term) ←
+    let .exprType A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
+    let (a_term, b_expr) ←
       match A_term with
-      | Untyped.Term.set a_term b_term => pure (a_term, b_term)
+      | Untyped.Term.set a_term (Untyped.Term.expr b_expr) => pure (a_term, b_expr)
       | _ => throwErrorAt A "invalid type in let-set"
     let x_term ← elabErtTerm env ctx x
     let aName := a.getId
     let bName := b.getId
-    let e_term ← elabErtTerm env ((bName, Hyp.val b_term .prop) :: (aName, Hyp.val a_term .type) :: ctx) e
+    let e_term ← elabErtTerm env
+      ((bName, Hyp.prop b_expr) :: (aName, Hyp.type a_term) :: ctx) e
     return Untyped.Term.let_set .type A_term x_term e_term
   | `(ertTerm| λ ‖$x : $A‖ . $t) => do
-    let .expr _ A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
+    let .exprType A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
     let xName := x.getId
-    let t_term ← elabErtTerm env ((xName, Hyp.val A_term .type) :: ctx) t
+    let t_term ← elabErtTerm env ((xName, Hyp.type A_term) :: ctx) t
     return Untyped.Term.lam_irrel A_term t_term
   | `(ertTerm| $f:ertTerm (‖ $a:ertTerm ‖) ) => do
     let f_term ← elabErtTerm env ctx f
@@ -176,7 +168,7 @@ partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → Com
     let u_term ← elabErtTerm env ctx u
     return Untyped.Term.repr t_term u_term
   | `(ertTerm| let ( ‖$x‖, $y) : $A = $e:ertTerm in $b) => do
-    let .expr _ A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
+    let .exprType A_term ← elabErtType env ctx A | throwErrorAt A "expected type expression"
     let (x_term, y_term) ←
       match A_term with
       | Untyped.Term.union x_term y_term => pure (x_term, y_term)
@@ -184,24 +176,27 @@ partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → Com
     let e_term ← elabErtTerm env ctx e
     let xName := x.getId
     let yName := y.getId
-    let b_term ← elabErtTerm env ((yName, Hyp.val y_term .type) :: (xName, Hyp.val x_term .type) :: ctx) b
+    let b_term ← elabErtTerm env
+      ((yName, Hyp.type y_term) :: (xName, Hyp.type x_term) :: ctx) b
     return Untyped.Term.let_repr .type A_term e_term b_term
   | `(ertTerm| $n:num) =>
     return buildNat n.getNat
   | `(ertTerm| natrec [$x ↦ $C:ertType] $e:ertTerm | $z:ertTerm
     | ‖succ $xs:ident‖ , $xp ↦ $s) => do
     let xName := x.getId
-    -- K has 1 binder in nr [1,0,0,2]: elaborate body with x in scope directly
-    let .expr _ K_term ← elabErtType env ((xName, Hyp.val Untyped.Term.nats .type) :: ctx) C | throwErrorAt C "expected type expression"
+    let .exprType K_term ← elabErtType env
+        ((xName, Hyp.type Untyped.Term.nats) :: ctx) C
+      | throwErrorAt C "expected type expression"
     let e_term ← elabErtTerm env ctx e
     let z_term ← elabErtTerm env ctx z
     let xsName := xs.getId
     let xpName := xp.getId
-    let s_term ← elabErtTerm env ((xpName, Hyp.val K_term .type) :: (xsName, Hyp.val Untyped.Term.nats .type) :: ctx) s
+    let s_term ← elabErtTerm env
+        ((xpName, Hyp.type K_term) :: (xsName, Hyp.type Untyped.Term.nats) :: ctx) s
     return Untyped.Term.natrec .type K_term e_term z_term s_term
   | `(ertTerm| ($t)) => elabErtTerm env ctx t
   | `(ertTerm| nil : $A) => do
-    let .expr _ A_term ← elabErtType env ctx A
+    let .exprType A_term ← elabErtType env ctx A
       | throwErrorAt A "expected type expression"
     return Untyped.Term.em A_term
   | `(ertTerm| $x :: $xs) => do
@@ -214,11 +209,11 @@ partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → Com
     let hdName := hd.getId
     let tlName := tl.getId
     let ihName := ih.getId
-    let .expr _ T_term ← elabErtType env ctx T
+    let .exprType T_term ← elabErtType env ctx T
       | throwErrorAt T m!"invalid type"
     -- Motive is checked under the list binder (xs : list T)
-    let .expr _ K_term ← elabErtType env
-        ((xsName, Hyp.val (Untyped.Term.list T_term) .type) :: ctx) C
+    let .exprType K_term ← elabErtType env
+        ((xsName, Hyp.type (Untyped.Term.list T_term)) :: ctx) C
       | throwErrorAt C "expected type expression"
     let e_term ← elabErtTerm env ctx e
     let em_term ← elabErtTerm env ctx em
@@ -229,9 +224,9 @@ partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → Com
     -- Stored types are in just-below-binder context, matching Subst.lookupVar's
     -- automatic wk1 application as we descend.
     let c_term ← elabErtTerm env
-        ((ihName, Hyp.val (K_term.lift 1 1) .type) ::
-         (tlName, Hyp.val (Untyped.Term.list T_term).wk1 .type) ::
-         (hdName, Hyp.val T_term .type) :: ctx) c
+        ((ihName, Hyp.type (K_term.lift 1 1)) ::
+         (tlName, Hyp.type (Untyped.Term.list T_term).wk1) ::
+         (hdName, Hyp.type T_term) :: ctx) c
     return Untyped.Term.listrec .type K_term e_term em_term c_term
   | stx => throwErrorAt stx "Unsupported ERT term: {stx}"
 
@@ -254,7 +249,7 @@ def addStatementToLeanEnv (env : Env) (name : Name) (type term : Untyped.Term) :
 
 def elabErtStatement (env : List Statement) : Syntax → CommandElabM Statement
   | `(ertStatement| def $name : $ty:ertType := $body) => do
-    let annot@(.expr _ type) ← elabErtType env [] ty | throwErrorAt ty "expected a type"
+    let annot@(.exprType type) ← elabErtType env [] ty | throwErrorAt ty "expected a type"
     let term ← elabErtTerm env [] body
     try
       liftTermElabM $ Check.check env term annot
@@ -262,13 +257,11 @@ def elabErtStatement (env : List Statement) : Syntax → CommandElabM Statement
       return .defn name.getId type term
     catch msg =>
       throwErrorAt name msg.toMessageData
-    -- Lean.logInfo m!"type: {repr type}\nterm: {repr term}"
-  | `(ertStatement| def $name : $prop:ertProp := $body) => do
-    let .expr _ prop ← elabErtProp env [] prop | throwErrorAt prop "expected prop expression"
-    let expectedType ← liftTermElabM $ prop.toExpr env []
-    let body ← liftTermElabM $ Term.elabTermAndSynthesize body expectedType
-    if ← liftTermElabM $ isDefEq expectedType (← liftTermElabM $ inferType body) then
-      return .thm name.getId prop body
+  | `(ertStatement| def $name : $prop:term := $body:term) => do
+    let .exprProp prop ← elabErtProp env [] prop | throwErrorAt prop "expected prop expression"
+    let bodyExpr ← liftTermElabM $ Term.elabTermAndSynthesize body prop
+    if ← liftTermElabM $ isDefEq prop (← liftTermElabM $ Meta.inferType bodyExpr) then
+      return .thm name.getId prop bodyExpr
     else
       throwErrorAt name "invalid proof"
   | _ => throwUnsupportedSyntax

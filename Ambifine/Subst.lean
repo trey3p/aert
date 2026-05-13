@@ -7,12 +7,16 @@ namespace Untyped
 -- The binding depth encoded in each TermKind index determines how much
 -- the cutoff grows as lift descends under binders.
 def Term.lift (cutoff shift : Nat) : Term → Term
-  | .proof x y => .proof x y
+  | .proof p Ty        => .proof (p.liftLooseBVars cutoff shift)
+                                  (Ty.liftLooseBVars cutoff shift)
+  | .expr e            => .expr (e.liftLooseBVars cutoff shift)
   | .var v             => .var (if v < cutoff then v else v + shift)
   | .const c           => .const c
   | .unary k t         => .unary k (t.lift cutoff shift)
   | .bin k l r         => .bin k (l.lift cutoff shift) (r.lift cutoff shift)
   | .abs k A t         => .abs k (A.lift cutoff shift) (t.lift (cutoff + 1) shift)
+  | .pabs k A t        => .pabs k (A.liftLooseBVars cutoff shift)
+                                   (t.lift (cutoff + 1) shift)
   | .tri k A l r       => .tri k (A.lift cutoff shift) (l.lift cutoff shift)
                                   (r.lift cutoff shift)
   | .ir k x y P        => .ir k (x.lift cutoff shift) (y.lift cutoff shift)
@@ -38,7 +42,7 @@ def Term.wkn (n : Nat) (t : Term) : Term := t.lift 0 n
 def _root_.Hyp.wk1 : Hyp → Hyp
 | .gst ty => .gst ty.wk1
 | .type ty => .type ty.wk1
-| .prop ty => .prop ty
+| .prop ty => .prop (ty.liftLooseBVars 0 1)
 
 -- Computable analogue of HasVar: walk the context, applying wk1 at each step
 -- so the returned type is valid in the full context (not just the tail).
@@ -56,11 +60,13 @@ def Subst.lift (s : Subst) : Subst
 def Term.subst (e : Term) (s : Subst ) : Term :=
   match e with
   | Term.proof _ _ => e
+  | Term.expr _ => e
   | Term.var n => s n
   | Term.const k => Term.const k
   | Term.unary k t => Term.unary k (t.subst s)
   | Term.bin k l r => Term.bin k (l.subst s) (r.subst s)
   | Term.abs k A t => Term.abs k (A.subst s) (t.subst s.lift)
+  | Term.pabs k A t => Term.pabs k A (t.subst s.lift)
   | Term.tri k A l r => Term.tri k (A.subst s) (l.subst s) (r.subst s)
   | Term.ir k x y P => Term.ir k (x.subst s) (y.subst s) (P.subst s.lift)
   | Term.cases k K d l r =>

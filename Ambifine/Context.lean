@@ -11,7 +11,6 @@ inductive Hyp where
 | type (ty : Term)
 | prop (ty : Lean.Expr)
 
-
 abbrev Ctx := List Hyp
 
 def Ctx.upgrade (Γ : Ctx) : Ctx := Γ.map fun h =>
