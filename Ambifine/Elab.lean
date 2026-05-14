@@ -234,8 +234,12 @@ end
 
 def addStatementToLeanEnv (env : Env) (name : Name) (type term : Untyped.Term) :
     CommandElabM Unit := do
-  let typeExpr ← liftTermElabM $ type.toExpr env []
-  let termExpr ← liftTermElabM $ term.toExpr env []
+  let typeExpr ← liftTermElabM $ do instantiateMVars (← type.toExpr env [])
+  let termExpr ← liftTermElabM $ do instantiateMVars (← term.toExpr env [])
+  if typeExpr.hasMVar then
+    throwError "unresolved metavariables in elaborated type: {typeExpr}"
+  if termExpr.hasMVar then
+    throwError "unresolved metavariables in elaborated term: {termExpr}"
   liftTermElabM $ addAndCompile <| .defnDecl {
     name        := name
     levelParams := []

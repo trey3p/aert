@@ -1,5 +1,8 @@
 import Ambifine.Untyped
 import Ambifine.Context
+import Ambifine.UntypedToExpr
+
+open Lean Meta
 
 namespace Untyped
 
@@ -57,37 +60,49 @@ def Subst.lift (s : Subst) : Subst
   | 0 => Term.var 0
   | n + 1 => Term.wk1 (s n)
 
-def Term.subst (e : Term) (s : Subst ) : Term :=
+/-- Build the prefix of a `Subst` as an `Array Expr`, suitable for
+    `Expr.instantiate` against a payload whose loose-bvar range is `n`. -/
+private def Subst.toExprArr (s : Subst) (n : Nat) : MetaM (Array Expr) :=
+  (List.range n).toArray.mapM (fun i => (s i).toExprBVars)
+
+partial def Term.subst (e : Term) (s : Subst) : MetaM Term := do
   match e with
-  | Term.proof _ _ => e
-  | Term.expr _ => e
-  | Term.var n => s n
-  | Term.const k => Term.const k
-  | Term.unary k t => Term.unary k (t.subst s)
-  | Term.bin k l r => Term.bin k (l.subst s) (r.subst s)
-  | Term.abs k A t => Term.abs k (A.subst s) (t.subst s.lift)
-  | Term.pabs k A t => Term.pabs k A (t.subst s.lift)
-  | Term.tri k A l r => Term.tri k (A.subst s) (l.subst s) (r.subst s)
-  | Term.ir k x y P => Term.ir k (x.subst s) (y.subst s) (P.subst s.lift)
+  | Term.proof p Ty =>
+    let pArr ← s.toExprArr p.looseBVarRange
+    let tArr ← s.toExprArr Ty.looseBVarRange
+    return Term.proof (p.instantiate pArr) (Ty.instantiate tArr)
+  | Term.expr e' =>
+    let arr ← s.toExprArr e'.looseBVarRange
+    return Term.expr (e'.instantiate arr)
+  | Term.var n => return s n
+  | Term.const k => return Term.const k
+  | Term.unary k t => return Term.unary k (← t.subst s)
+  | Term.bin k l r => return Term.bin k (← l.subst s) (← r.subst s)
+  | Term.abs k A t => return Term.abs k (← A.subst s) (← t.subst s.lift)
+  | Term.pabs k A t =>
+    let arr ← s.toExprArr A.looseBVarRange
+    return Term.pabs k (A.instantiate arr) (← t.subst s.lift)
+  | Term.tri k A l r => return Term.tri k (← A.subst s) (← l.subst s) (← r.subst s)
+  | Term.ir k x y P => return Term.ir k (← x.subst s) (← y.subst s) (← P.subst s.lift)
   | Term.cases k K d l r =>
-      Term.cases k (K.subst s) (d.subst s) (l.subst s.lift) (r.subst s.lift)
+      return Term.cases k (← K.subst s) (← d.subst s) (← l.subst s.lift) (← r.subst s.lift)
   | Term.let_bin k P e e' =>
-      Term.let_bin k (P.subst s) (e.subst s) (e'.subst s.lift.lift)
+      return Term.let_bin k (← P.subst s) (← e.subst s) (← e'.subst s.lift.lift)
   | Term.let_bin_beta k P l r e' =>
-      Term.let_bin_beta k (P.subst s) (l.subst s) (r.subst s) (e'.subst s.lift.lift)
+      return Term.let_bin_beta k (← P.subst s) (← l.subst s) (← r.subst s) (← e'.subst s.lift.lift)
   | Term.nr k K e z q =>
-      Term.nr k (K.subst s.lift) (e.subst s) (z.subst s) (q.subst s.lift.lift)
+      return Term.nr k (← K.subst s.lift) (← e.subst s) (← z.subst s) (← q.subst s.lift.lift)
   | Term.nz k K z q =>
-      Term.nz k (K.subst s.lift) (z.subst s) (q.subst s.lift.lift)
+      return Term.nz k (← K.subst s.lift) (← z.subst s) (← q.subst s.lift.lift)
   | Term.lr k K e n c =>
-      Term.lr k (K.subst s.lift) (e.subst s) (n.subst s) (c.subst s.lift.lift.lift)
+      return Term.lr k (← K.subst s.lift) (← e.subst s) (← n.subst s) (← c.subst s.lift.lift.lift)
 
 -- Single-variable substitution: replace var 0 with t, decrement all others.
 def Subst.subst0 (t : Term) : Subst
   | 0     => t
   | n + 1 => .var n
 
-def Term.subst0 (e r : Term) : Term := e.subst (Subst.subst0 r)
+def Term.subst0 (e r : Term) : MetaM Term := e.subst (Subst.subst0 r)
 
 -- alpha-substitution: replace var 0 with t, leave all other variables unchanged.
 -- Unlike subst0, does NOT decrement vars ≥ 1.  Used for motive instantiation
@@ -96,11 +111,11 @@ def Subst.alpha0 (t : Term) : Subst
   | 0     => t
   | n + 1 => .var (n + 1)
 
-def Term.alpha0 (e r : Term) : Term := e.subst (Subst.alpha0 r)
+def Term.alpha0 (e r : Term) : MetaM Term := e.subst (Subst.alpha0 r)
 
 -- Abstract over variable k in t: lift t by 1, then replace var (k+1) with var 0.
 -- Produces predicate P satisfying P.subst0(var k) = t.
-def Term.abstractVar (k : Nat) (t : Term) : Term :=
+def Term.abstractVar (k : Nat) (t : Term) : MetaM Term :=
   (t.lift 0 1).subst fun j => if j == k + 1 then .var 0 else .var j
 
 end Untyped

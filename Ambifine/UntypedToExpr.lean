@@ -176,6 +176,134 @@ def Untyped.Term.toExpr (env : List Statement) (ctx : List Expr) : Term → Meta
   return mkConst defName
 | a => throwError m!"unhandled proof term {_root_.repr a}"
 
+def Untyped.Term.getMaxBVarIdx (t : Term) : Nat := go 0 t
+where
+  go (curr : Nat) : Term → Nat
+  | var (v: Nat) => max v curr
+  | proof p Ty => max curr (max (p.looseBVarRange - 1) (Ty.looseBVarRange - 1))
+  | expr (e : Lean.Expr) => max curr (e.looseBVarRange - 1)
+  | const (_: TermKind []) => curr
+  | unary (_: TermKind [0]) (t: Term) => max curr (go curr t)
+  | let_bin (_: TermKind [0, 0, 2]) (P: Term) (e: Term) (e': Term) =>
+    max curr (max (go curr P) (max (go curr e) (go curr e')))
+  | let_bin_beta (_: TermKind [0, 0, 0, 2]) (P: Term) l r (e': Term) =>
+    max curr (max (go curr P) (max (go curr l) (max (go curr r) (go curr e'))))
+  | bin (_: TermKind [0, 0]) (l: Term) (r: Term) =>
+    max curr (max (go curr l) (go curr r))
+  | abs (_: TermKind [0, 1]) (A: Term) (t: Term) =>
+    max curr (max (go curr A) (go curr t))
+  | pabs (_: TermKind [0, 1]) (A: Lean.Expr) (t: Term) =>
+    max curr (max (A.looseBVarRange - 1) (go curr t))
+  | tri (_: TermKind [0, 0, 0]) (A: Term) (l: Term) (r: Term) =>
+    max curr (max (go curr A) (max (go curr l) (go curr r)))
+  | ir (_: TermKind [0, 0, 1]) (x: Term) (y: Term) (P: Term) =>
+    max curr (max (go curr x) (max (go curr y) (go curr P)))
+  | cases (_: TermKind [0, 0, 1, 1]) (K: Term) (d: Term) (l: Term) (r: Term) =>
+    max curr (max (go curr K) (max (go curr d) (max (go curr l) (go curr r))))
+  | nr (_: TermKind [1, 0, 0, 2]) (K: Term) (e: Term) (z: Term) (s: Term) =>
+    max curr (max (go curr K) (max (go curr e) (max (go curr z) (go curr s))))
+  | nz (_: TermKind [1, 0, 2]) (K: Term) (z: Term) (s: Term) =>
+    max curr (max (go curr K) (max (go curr z) (go curr s)))
+  | lr (_ : TermKind [1, 0, 0, 3]) (K : Term) (e : Term) (emm : Term) (c : Term) =>
+    max curr (max (go curr K) (max (go curr e) (max (go curr emm) (go curr c))))
+
+/--
+  Context-less conversion of `Term` to `Lean.Expr`. Unlike `toExpr`, variables
+  become loose `.bvar`s and binders are constructed directly with `.lam` /
+  `.forallE`, so no fresh fvars or `mkFreshUserName` are needed. Universes for
+  polymorphic constants (`Sigma`, `Sum`, `Subtype`, `Sigma.mk`, …) are filled
+  with fresh level mvars and resolved during elaboration of the final term.
+
+  Used by `Term.subst` to substitute `Term`s into loose bvars inside embedded
+  `.expr`/`.proof` payloads. Some elimination cases (`Sigma.casesOn`, `Sum.casesOn`,
+  `Nat.rec`, `List.foldr`) are not supported here because they need types that
+  aren't recoverable from the `Term` alone — they throw if encountered.
+-/
+partial def Untyped.Term.toExprBVars : Term → MetaM Expr
+| Term.unit => return mkConst ``Unit
+| Term.nats => return mkConst ``Nat
+| Term.nil => return mkConst ``Unit.unit
+| Term.zero => return mkNatLit 0
+| Term.succ => return mkConst ``Nat.succ
+| Term.proof e _ => return e
+| Term.expr e => return e
+| Term.var v => return .bvar v
+| Term.pi dom cod
+| Term.intersect dom cod => do
+  return .forallE `x (← dom.toExprBVars) (← cod.toExprBVars) .default
+| Term.assume P cod => do
+  return .forallE `x P (← cod.toExprBVars) .default
+| Term.sigma dom cod => do
+  let u ← mkFreshLevelMVar
+  let v ← mkFreshLevelMVar
+  let d ← dom.toExprBVars
+  let c ← cod.toExprBVars
+  return mkApp2 (mkConst ``Sigma [u, v]) d (.lam `x d c .default)
+| Term.coprod l r => do
+  let u ← mkFreshLevelMVar
+  let v ← mkFreshLevelMVar
+  return mkApp2 (mkConst ``Sum [u, v]) (← l.toExprBVars) (← r.toExprBVars)
+| Term.set A (Term.expr P) => do
+  let u ← mkFreshLevelMVar
+  let d ← A.toExprBVars
+  return mkApp2 (mkConst ``Subtype [u]) d (.lam `x d P .default)
+| Term.set A b => do
+  let u ← mkFreshLevelMVar
+  let d ← A.toExprBVars
+  return mkApp2 (mkConst ``Subtype [u]) d (.lam `x d (← b.toExprBVars) .default)
+| Term.union dom cod => do
+  let u ← mkFreshLevelMVar
+  let d ← dom.toExprBVars
+  return mkApp2 (mkConst ``Subtype [u]) d (.lam `x d (← cod.toExprBVars) .default)
+| Term.lam A t
+| Term.lam_irrel A t => do
+  return .lam `x (← A.toExprBVars) (← t.toExprBVars) .default
+| Term.lam_pr P t => do
+  return .lam `x P (← t.toExprBVars) .default
+| Term.app _ Term.succ r => do
+  return mkApp (mkConst ``Nat.succ) (← r.toExprBVars)
+| Term.app _ f x
+| Term.app_pr _ f x
+| Term.app_irrel _ f x => do
+  return mkApp (← f.toExprBVars) (← x.toExprBVars)
+| Term.pair l r => do
+  let u ← mkFreshLevelMVar
+  let v ← mkFreshLevelMVar
+  let α ← mkFreshExprMVar none
+  let β ← mkFreshExprMVar none
+  return mkAppN (mkConst ``Sigma.mk [u, v]) #[α, β, ← l.toExprBVars, ← r.toExprBVars]
+| Term.elem val p _ => do
+  let u ← mkFreshLevelMVar
+  let α ← mkFreshExprMVar none
+  let pred ← mkFreshExprMVar none
+  return mkAppN (mkConst ``Subtype.mk [u]) #[α, pred, ← val.toExprBVars, ← p.toExprBVars]
+| Term.repr l r => do
+  let u ← mkFreshLevelMVar
+  let α ← mkFreshExprMVar none
+  let pred ← mkFreshExprMVar none
+  return mkAppN (mkConst ``Subtype.mk [u]) #[α, pred, ← l.toExprBVars, ← r.toExprBVars]
+| Term.bin (TermKind.inj b) _ t => do
+  let u ← mkFreshLevelMVar
+  let v ← mkFreshLevelMVar
+  let α ← mkFreshExprMVar none
+  let β ← mkFreshExprMVar none
+  let ctor := if b.val == 0 then ``Sum.inl else ``Sum.inr
+  return mkAppN (mkConst ctor [u, v]) #[α, β, ← t.toExprBVars]
+| Term.list A => do
+  let u ← mkFreshLevelMVar
+  return mkApp (mkConst ``List [u]) (← A.toExprBVars)
+| Term.em _ => do
+  let u ← mkFreshLevelMVar
+  let α ← mkFreshExprMVar none
+  return mkApp (mkConst ``List.nil [u]) α
+| Term.cons x xs => do
+  let u ← mkFreshLevelMVar
+  let α ← mkFreshExprMVar none
+  return mkAppN (mkConst ``List.cons [u]) #[α, ← x.toExprBVars, ← xs.toExprBVars]
+| Untyped.Term.const (Untyped.TermKind.definition defName) =>
+  return mkConst defName
+| a => throwError m!"toExprBVars: unsupported term {_root_.repr a}"
+
 /--
   Given a list of `Term` representing a context,
   convert each of those into an `Expr` and then add them to the

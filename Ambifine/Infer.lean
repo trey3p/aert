@@ -185,7 +185,7 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
     | .exprType (Term.abs TermKind.pi A B) =>
       match ← inferType Γ ρ fvars x with
       | .exprType A' =>
-          if A == A' then return .exprType (B.subst0 x)
+          if A == A' then return .exprType (← B.subst0 x)
           else throwError m!"app: argument type mismatch: expected {repr A}, got {repr A'}"
       | a => throwError m!"app: argument {repr x} must have a type, got {repr a}"
     | a => throwError m!"app: function {repr f} must have a pi type, got {repr a}"
@@ -199,7 +199,7 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
           let φ_inst := φ.instantiate fvars.toArray
           unless ← isDefEq φ_inst φ' do
             throwError m!"app_pr: proof type mismatch"
-          return .exprType (A.subst0 r)
+          return .exprType (← A.subst0 r)
       | a => throwError m!"app_pr: right argument {repr r} must be a proof, got {repr a}"
     | a => throwError m!"app_pr: left argument {repr l} must have an assume type, got {repr a}"
 
@@ -210,7 +210,7 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
     | .exprType (Term.abs TermKind.intersect A B) =>
       match ← inferType (Ctx.upgrade Γ) ρ fvars r with
       | .exprType A' =>
-          if A == A' then return .exprType (B.subst0 r)
+          if A == A' then return .exprType (← B.subst0 r)
           else throwError m!"app_irrel: argument type mismatch: expected {repr A}, got {repr A'}"
       | a => throwError m!"app_irrel: right argument {repr r} must have a type, got {repr a}"
     | a => throwError m!"app_irrel: left argument {repr l} must have an intersect type, got {repr a}"
@@ -259,11 +259,12 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
       | .exprType (Term.const TermKind.nats) =>
         match ← inferType Γ ρ fvars z with
         | .exprType z_ty =>
-          if z_ty == C.subst0 Term.zero then
+          let z_expected ← C.subst0 Term.zero
+          if z_ty == z_expected then
             let succ_app := Term.tri TermKind.app
                               (Term.abs TermKind.pi Term.nats Term.nats)
                               Term.succ (Term.var 1)
-            let step_ty  := (C.lift 1 1).alpha0 succ_app
+            let step_ty  ← (C.lift 1 1).alpha0 succ_app
             let step_ctx := Hyp.type C :: Hyp.gst Term.nats :: Γ
             let res_s ← withLocalDeclD (← mkFreshUserName `n) nats_expr fun n_fvar => do
               let C_n ← C.toExpr ρ (n_fvar :: fvars)
@@ -271,10 +272,10 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
                 inferType step_ctx ρ (ih_fvar :: n_fvar :: fvars) s
             match res_s with
             | .exprType s_ty =>
-                if s_ty == step_ty then return .exprType (C.subst0 e)
+                if s_ty == step_ty then return .exprType (← C.subst0 e)
                 else throwError m!"natrec: step type mismatch: expected {repr step_ty}, got {repr s_ty}"
             | a => throwError m!"natrec: step {repr s} must have a type, got {repr a}"
-          else throwError m!"natrec: base case type mismatch: expected {repr (C.subst0 Term.zero)}, got {repr z_ty}"
+          else throwError m!"natrec: base case type mismatch: expected {repr z_expected}, got {repr z_ty}"
         | a => throwError m!"natrec: base case {repr z} must have a type, got {repr a}"
       | a => throwError m!"natrec: subject {repr e} must have type nats, got {repr a}"
     | a => throwError m!"natrec: motive {repr C} must be a type, got {repr a}"
@@ -305,8 +306,8 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
       | Term.abs TermKind.lam _ C =>
         let A_expr ← A.toExpr ρ fvars
         let B_expr ← B.toExpr ρ fvars
-        let l_ty := C.alpha0 (Term.bin (TermKind.inj (0 : Fin 2)) B.wk1 (Term.var 0))
-        let r_ty := C.alpha0 (Term.bin (TermKind.inj (1 : Fin 2)) A.wk1 (Term.var 0))
+        let l_ty ← C.alpha0 (Term.bin (TermKind.inj (0 : Fin 2)) B.wk1 (Term.var 0))
+        let r_ty ← C.alpha0 (Term.bin (TermKind.inj (1 : Fin 2)) A.wk1 (Term.var 0))
         let l_result ← withLocalDeclD (← mkFreshUserName `x) A_expr fun x_fvar =>
           inferType (Hyp.type A :: Γ) ρ (x_fvar :: fvars) l
         let r_result ← withLocalDeclD (← mkFreshUserName `y) B_expr fun y_fvar =>
@@ -314,7 +315,7 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
         match l_result, r_result with
         | .exprType l_ty', .exprType r_ty' =>
           if l_ty' == l_ty && r_ty' == r_ty then
-            return .exprType (C.subst0 d)
+            return .exprType (← C.subst0 d)
           else throwError m!"case: branch type mismatch"
         | aL, aR => throwError m!"case: branches must have types, got {repr aL} and {repr aR}"
       | _ => throwError m!"case: motive {repr K} must be a lam"
@@ -408,7 +409,7 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
         inferType (Hyp.type (Term.list A) :: Γ) ρ (xs_fvar :: fvars) C
       match res_C with
       | .sort .type =>
-        let nil_ty := C.subst0 (Term.em A)
+        let nil_ty ← C.subst0 (Term.em A)
         match ← inferType Γ ρ fvars nil_case with
         | .exprType nil_case_ty =>
           if nil_case_ty == nil_ty then
@@ -416,7 +417,7 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
               Hyp.type (C.lift 1 1) ::
               Hyp.type (Term.list A).wk1 ::
               Hyp.type A :: Γ
-            let cons_ty :=
+            let cons_ty ←
               (C.lift 1 2).alpha0
                 (Term.bin TermKind.cons (Term.var 2) (Term.var 1))
             let res_cons_case ←
@@ -427,7 +428,7 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
                     inferType cons_ctx ρ (ih_fvar :: tl_fvar :: hd_fvar :: fvars) cons_case
             match res_cons_case with
             | .exprType cons_case_ty =>
-                if cons_case_ty == cons_ty then return .exprType (C.subst0 e)
+                if cons_case_ty == cons_ty then return .exprType (← C.subst0 e)
                 else throwError m!"listrec: cons case type mismatch: expected {repr cons_ty}, got {repr cons_case_ty}"
             | a => throwError m!"listrec: cons case {repr cons_case} must have a type, got {repr a}"
           else throwError m!"listrec: nil case type mismatch: expected {repr nil_ty}, got {repr nil_case_ty}"
