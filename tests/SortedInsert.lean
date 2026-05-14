@@ -34,7 +34,7 @@ def leDec (a b : Nat) : (a ≤ b) ∨ (b < a) :=
 def insert :
     (x : ℕ) →
     (l : {l : list ℕ | sorted l}) →
-    {l' : list ℕ | sorted l' ∧ List.length l' =(ℕ) List.length l + 1} :=
+    {l' : list ℕ | sorted l' ∧ List.length l' = List.length l + 1} :=
   λ x : ℕ .
   λ l : {l : list ℕ | sorted l} .
     let {xs, hs} : {l : list ℕ | sorted l} = l in
@@ -68,5 +68,5 @@ def insert :
           | nil       => rfl
           | cons _ _ ih_xs =>
             unfold leDec; split <;> simp [List.length, ih_xs] <;> omega
-      : sorted result ∧ List.length result =(ℕ) List.length xs + 1
-    } : {l' : list ℕ | sorted l' ∧ List.length l' =(ℕ) List.length l + 1}
+      : sorted result ∧ List.length result = List.length xs + 1
+    } : {l' : list ℕ | sorted l' ∧ List.length l' = List.length l + 1}

@@ -26,4 +26,4 @@ def length : (x : list ℕ) → ℕ :=
     | hd, tl, ih ↦ ((succ : (n : ℕ) → ℕ) ih)
 
 def length_example : (length list_def) = 2 := by
-  grind
+  simp [length, list_def]
