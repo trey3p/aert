@@ -23,24 +23,56 @@ def mult : (m : ℕ) → (n : ℕ) → ℕ :=
       | ‖succ p‖, ih ↦
           (((plus : (a : ℕ) → (b : ℕ) → ℕ) n : (b : ℕ) → ℕ) ih)
 
--- Safe indexed access.  The refinement `i < length xs` is the precondition;
--- once it is satisfied at the call site, the implementation can never go
--- out of bounds.  Implemented by listrec on xs producing a function on i.
+-- Safe indexed access.  We dispatch on the index `idx` via natrec with a
+-- dependent motive.  The motive `n ↦ (ys : list ℕ) → {x : ℕ | n < length ys} → ℕ`
+-- abstracts over both the list to be indexed AND the proof that `n` fits.
+-- Because the predecessor `j` of `succ j` is ghost in the ERT natrec, we
+-- never reference `j` as a value; it only appears in the refinement
+-- predicates the recursive call consumes.  The dummy `0` in each subset
+-- constructor occupies the irrelevant value slot — only the proof matters.
 def get : (xs : list ℕ) → (i : {x : ℕ | x < length xs}) → ℕ :=
   λ xs : list ℕ .
-    listrec [(ys : list ℕ) ↦ (i : {x : ℕ | x < length ys}) → ℕ] xs
-      -- nil: precondition x < 0 is unsatisfiable, so this branch is dead.
-      -- We extract the proof and let the refinement do the absurd-elimination.
-      | λ i : {x : ℕ | x < 0} .
-          let {x, p} : {x : ℕ | x < 0} = i in 0
-      -- cons hd tl: at index 0 return hd, otherwise recurse on tl with i-1.
-      | hd, tl, ih ↦ λ i : {x : ℕ | x < length (hd :: tl)} .
-          let {idx, p} : {x : ℕ | x < length (hd :: tl)} = i in
-          natrec [n ↦ ℕ] idx
-            | hd
-            | ‖succ j‖, ih ↦
-                ((ih : (i : {x : ℕ | x < length tl}) → ℕ)
-                  ({j, by grind : j < length tl} : {x : ℕ | x < length tl}))
+  λ i : {x : ℕ | x < length xs} .
+    let {idx, p} : {x : ℕ | x < length xs} = i in
+    (((natrec
+        [n ↦ (ys : list ℕ) → (q : {x : ℕ | n < length ys}) → ℕ]
+        idx
+        -- BASE: n = 0.  Receive ys and a proof q that 0 < length ys, then
+        -- listrec on ys.  The nil branch is unreachable but we return 0.
+        | λ ys : list ℕ .
+            λ q : {x : ℕ | 0 < length ys} .
+              let {qv, pq} : {x : ℕ | 0 < length ys} = q in
+              listrec [(zs : list ℕ) ↦ ℕ] ys
+                | 0
+                | hd, tl, _ih ↦ hd
+        -- STEP: n = succ j.  IH `_rec : (ys : list ℕ) → {x | j < length ys} → ℕ`.
+        -- Inner listrec on ys uses a *dependent* motive so the cons branch
+        -- knows length zs = length tl + 1, enabling the proof discharge.
+        | ‖succ j‖, _rec ↦
+            λ ys : list ℕ .
+            λ q : {x : ℕ | j + 1 < length ys} .
+              (((listrec
+                  [(zs : list ℕ) ↦ (q' : {x : ℕ | j + 1 < length zs}) → ℕ]
+                  ys
+                  -- nil branch: take q', destructure, ignore (unreachable).
+                  | λ q' : {x : ℕ | j + 1 < length ([] : List Nat)} .
+                      let {qv', pq'} : {x : ℕ | j + 1 < length ([] : List Nat)} = q' in 0
+                  -- cons branch: peel hd, call _rec on tl.  From
+                  -- q' : j + 1 < length (hd :: tl) = length tl + 1 we get
+                  -- j < length tl.
+                  | hd, tl, _ih ↦
+                      λ q' : {x : ℕ | j + 1 < length (hd :: tl)} .
+                        let {qv', pq'} : {x : ℕ | j + 1 < length (hd :: tl)} = q' in
+                        (((_rec : (ys : list ℕ) → (q : {x : ℕ | j < length ys}) → ℕ) tl
+                            : (q : {x : ℕ | j < length tl}) → ℕ)
+                          ({0, by
+                              have h : length (hd :: tl) = length tl + 1 := rfl
+                              omega : j < length tl}
+                            : {x : ℕ | j < length tl}))
+                ) : (q' : {x : ℕ | j + 1 < length ys}) → ℕ) q)
+      ) : (ys : list ℕ) → (q : {x : ℕ | idx < length ys}) → ℕ) xs
+        : (q : {x : ℕ | idx < length xs}) → ℕ)
+      ({0, p : idx < length xs} : {x : ℕ | idx < length xs})
 
 -- flatIndex, restated with an explicit refinement witness in the body so the
 -- typing obligation is local to this definition.

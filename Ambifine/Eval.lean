@@ -30,38 +30,57 @@ partial def eval (ρ : Env) : Term → MetaM Term
     )
 
   -- ── Type formers (inert) ─────────────────────────────────────────────────
-  | Term.pi A B        => Term.pi A B
-  | Term.sigma A B     => Term.sigma A B
-  | Term.coprod A B    => Term.coprod A B
-  | Term.set A P       => Term.set A P
-  | Term.assume φ A    => Term.assume φ A
-  | Term.intersect A B => Term.intersect A B
-  | Term.union A B     => Term.union A B
-  | Term.list A        => Term.list A
+  | Term.pi A B        => return Term.pi A B
+  | Term.sigma A B     => return  Term.sigma A B
+  | Term.coprod A B    => return Term.coprod A B
+  | Term.set A P       => return Term.set A P
+  | Term.assume φ A    => return Term.assume φ A
+  | Term.intersect A B => return Term.intersect A B
+  | Term.union A B     => return Term.union A B
+  | Term.list A        => return Term.list A
 
   -- ── λ-abstractions are values; do not reduce under binders ───────────────
-  | Term.lam A t       => Term.lam A t
-  | Term.lam_pr φ t    => Term.lam_pr φ t
-  | Term.lam_irrel A t => Term.lam_irrel A t
+  | Term.lam A t       => return Term.lam A t
+  | Term.lam_pr φ t    => return Term.lam_pr φ t
+  | Term.lam_irrel A t => return Term.lam_irrel A t
 
   -- ── Data constructors: evaluate components ───────────────────────────────
-  | Term.pair l r    => Term.pair (eval l) (eval r)
-  | Term.repr l r    => Term.repr (eval l) (eval r)
-  | Term.elem x p A  => Term.elem (eval x) p A
-  | Term.inj b A t   => Term.inj b A (eval t)
-  | Term.em A        => Term.em A
-  | Term.cons x xs   => Term.cons (eval x) (eval xs)
+  | Term.pair l r    => do
+      let a ← (eval ρ l)
+      let b ← (eval ρ r)
+      return Term.pair a b
+  | Term.repr l r    => do
+      let a ← (eval ρ l)
+      let b ← (eval ρ r)
+      return Term.repr (a) (b)
+  | Term.elem x p A  => do
+      let a ← (eval ρ x)
+      return Term.elem (a) p A
+  | Term.inj b A t   => do
+      let a ← (eval ρ t)
+      return Term.inj b A a
+  | Term.em A        => return Term.em A
+  | Term.cons x xs   => do
+      let a ← (eval ρ x)
+      let b ← (eval ρ xs)
+      return Term.cons a b
 
   -- ── β-reduction: function / proof / irrelevant application ───────────────
-  | Term.app A f x =>
-    let xv := eval x
-    match eval f with
-    | Term.lam _ body => eval (body.subst0 xv)
-    | fv              => Term.app A fv xv
-  | Term.app_pr A f p =>
-    match eval f with
-    | Term.lam_pr _ body => eval (body.subst0 p)
-    | fv                 => Term.app_pr A fv p
+  | Term.app A f x => do
+      let xv ← eval ρ x
+      let y  ← eval ρ f
+        match y with
+        | Term.lam _ body =>
+          let a ← (body.subst0 xv)
+          eval ρ a
+        | fv              => return Term.app A fv xv
+  | Term.app_pr A f p => do
+    let a ← eval ρ f
+      match a with
+      | Term.lam_pr _ body =>
+        let y ← (body.subst0 p)
+        eval ρ y
+      | fv                 => return Term.app_pr A fv p
   | Term.app_irrel A f x =>
     match eval f with
     | Term.lam_irrel _ body => eval (body.subst0 x)

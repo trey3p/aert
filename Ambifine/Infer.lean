@@ -260,7 +260,9 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
         match ← inferType Γ ρ fvars z with
         | .exprType z_ty =>
           let z_expected ← C.subst0 Term.zero
-          if z_ty == z_expected then
+          let z_ty_expr ← z_ty.toExpr ρ fvars
+          let z_expected_expr ← z_expected.toExpr ρ fvars
+          if ← isDefEq z_ty_expr z_expected_expr then
             let succ_app := Term.tri TermKind.app
                               (Term.abs TermKind.pi Term.nats Term.nats)
                               Term.succ (Term.var 1)
@@ -272,7 +274,15 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
                 inferType step_ctx ρ (ih_fvar :: n_fvar :: fvars) s
             match res_s with
             | .exprType s_ty =>
-                if s_ty == step_ty then return .exprType (← C.subst0 e)
+                let eqStep ←
+                  withLocalDeclD (← mkFreshUserName `n) nats_expr fun n_fvar => do
+                    let C_n ← C.toExpr ρ (n_fvar :: fvars)
+                    withLocalDeclD (← mkFreshUserName `ih) C_n fun ih_fvar => do
+                      let fvars' := ih_fvar :: n_fvar :: fvars
+                      let s_ty_expr ← s_ty.toExpr ρ fvars'
+                      let step_ty_expr ← step_ty.toExpr ρ fvars'
+                      isDefEq s_ty_expr step_ty_expr
+                if eqStep then return .exprType (← C.subst0 e)
                 else throwError m!"natrec: step type mismatch: expected {repr step_ty}, got {repr s_ty}"
             | a => throwError m!"natrec: step {repr s} must have a type, got {repr a}"
           else throwError m!"natrec: base case type mismatch: expected {repr z_expected}, got {repr z_ty}"
@@ -412,7 +422,9 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
         let nil_ty ← C.subst0 (Term.em A)
         match ← inferType Γ ρ fvars nil_case with
         | .exprType nil_case_ty =>
-          if nil_case_ty == nil_ty then
+          let nil_ty_expr ← nil_ty.toExpr ρ fvars
+          let nil_case_ty_expr ← nil_case_ty.toExpr ρ fvars
+          if ← isDefEq nil_case_ty_expr nil_ty_expr then
             let cons_ctx :=
               Hyp.type (C.lift 1 1) ::
               Hyp.type (Term.list A).wk1 ::
@@ -428,7 +440,16 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
                     inferType cons_ctx ρ (ih_fvar :: tl_fvar :: hd_fvar :: fvars) cons_case
             match res_cons_case with
             | .exprType cons_case_ty =>
-                if cons_case_ty == cons_ty then return .exprType (← C.subst0 e)
+                let eqOk ←
+                  withLocalDeclD (← mkFreshUserName `hd) A_expr fun hd_fvar => do
+                    withLocalDeclD (← mkFreshUserName `tl) list_A_expr fun tl_fvar => do
+                      let C_at_tl ← C.toExpr ρ (tl_fvar :: fvars)
+                      withLocalDeclD (← mkFreshUserName `ih) C_at_tl fun ih_fvar => do
+                        let fvars' := ih_fvar :: tl_fvar :: hd_fvar :: fvars
+                        let cons_ty_expr ← cons_ty.toExpr ρ fvars'
+                        let cons_case_ty_expr ← cons_case_ty.toExpr ρ fvars'
+                        isDefEq cons_case_ty_expr cons_ty_expr
+                if eqOk then return .exprType (← C.subst0 e)
                 else throwError m!"listrec: cons case type mismatch: expected {repr cons_ty}, got {repr cons_case_ty}"
             | a => throwError m!"listrec: cons case {repr cons_case} must have a type, got {repr a}"
           else throwError m!"listrec: nil case type mismatch: expected {repr nil_ty}, got {repr nil_case_ty}"
