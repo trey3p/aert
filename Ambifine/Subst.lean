@@ -60,18 +60,30 @@ def Subst.lift (s : Subst) : Subst
   | 0 => Term.var 0
   | n + 1 => Term.wk1 (s n)
 
-def Term.subst (e : Term) (s : Subst ) : Term :=
+/-- Build the prefix of a `Subst` as an `Array Expr`, suitable for
+    `Expr.instantiate` against a payload whose loose-bvar range is `n`. -/
+private def Subst.toExprArr (s : Subst) (n : Nat) : MetaM (Array Expr) :=
+  (List.range n).toArray.mapM (fun i => (s i).toExprBVars)
+
+partial def Term.subst (e : Term) (s : Subst) : MetaM Term := do
   match e with
-  | Term.proof _ _ => e
-  | Term.expr _ => e
-  | Term.var n => s n
-  | Term.const k => Term.const k
-  | Term.unary k t => Term.unary k (t.subst s)
-  | Term.bin k l r => Term.bin k (l.subst s) (r.subst s)
-  | Term.abs k A t => Term.abs k (A.subst s) (t.subst s.lift)
-  | Term.pabs k A t => Term.pabs k A (t.subst s.lift)
-  | Term.tri k A l r => Term.tri k (A.subst s) (l.subst s) (r.subst s)
-  | Term.ir k x y P => Term.ir k (x.subst s) (y.subst s) (P.subst s.lift)
+  | Term.proof p Ty =>
+    let pArr ← s.toExprArr p.looseBVarRange
+    let tArr ← s.toExprArr Ty.looseBVarRange
+    return Term.proof (p.instantiate pArr) (Ty.instantiate tArr)
+  | Term.expr e' =>
+    let arr ← s.toExprArr e'.looseBVarRange
+    return Term.expr (e'.instantiate arr)
+  | Term.var n => return s n
+  | Term.const k => return Term.const k
+  | Term.unary k t => return Term.unary k (← t.subst s)
+  | Term.bin k l r => return Term.bin k (← l.subst s) (← r.subst s)
+  | Term.abs k A t => return Term.abs k (← A.subst s) (← t.subst s.lift)
+  | Term.pabs k A t =>
+    let arr ← s.toExprArr A.looseBVarRange
+    return Term.pabs k (A.instantiate arr) (← t.subst s.lift)
+  | Term.tri k A l r => return Term.tri k (← A.subst s) (← l.subst s) (← r.subst s)
+  | Term.ir k x y P => return Term.ir k (← x.subst s) (← y.subst s) (← P.subst s.lift)
   | Term.cases k K d l r =>
       return Term.cases k (← K.subst s) (← d.subst s) (← l.subst s.lift) (← r.subst s.lift)
   | Term.let_bin k P e e' =>
