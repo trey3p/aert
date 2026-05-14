@@ -26,7 +26,7 @@ syntax "(" "inl" ertTerm  ")" " : " ertType : ertTerm
 syntax "(" "inr" ertTerm ")" " : " ertType : ertTerm
 syntax "cases" "[" ident ":" ertType "↦" ertType "]" ertTerm "|" "inl" "(" ident " : " ertType ")" "↦" ertTerm
   "|" "inr" "(" ident " : " ertType ")" "↦" ertTerm : ertTerm
-syntax "λ" ident " : " term " . " ertTerm : ertTerm
+syntax "λ" "(" ident " : " term ")" " . " ertTerm : ertTerm
 syntax ertTerm "(" term " : " term ")" : ertTerm
 syntax "{" ertTerm ", " term " :  " term "}" " : " ertType : ertTerm
 syntax "let" "{" ident ", " ident "}" " : " ertType " = "
