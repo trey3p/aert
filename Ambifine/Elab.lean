@@ -244,7 +244,7 @@ def addStatementToLeanEnv (env : Env) (name : Name) (type term : Untyped.Term) :
     throwError "unresolved metavariables in elaborated type: {typeExpr}"
   if termExpr.hasMVar then
     throwError "unresolved metavariables in elaborated term: {termExpr}"
-  liftTermElabM $ addDecl <| .defnDecl {
+  liftTermElabM $ addAndCompile (logCompileErrors := false) <| .defnDecl {
     name        := name
     levelParams := []
     type        := typeExpr
@@ -253,9 +253,7 @@ def addStatementToLeanEnv (env : Env) (name : Name) (type term : Untyped.Term) :
     safety      := .safe
   }
   liftTermElabM $ enableRealizationsForConst name
-  try
-    elabCommand (← `(command| attribute [grind] $(mkIdent name)))
-  catch _ => pure ()
+  liftCoreM <| Lean.Attribute.add name `grind Syntax.missing
 
 def elabErtStatement (env : List Statement) : Syntax → CommandElabM Statement
   | `(ertStatement| def $name : $ty:ertType := $body) => do

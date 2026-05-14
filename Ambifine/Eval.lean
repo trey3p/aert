@@ -81,15 +81,21 @@ partial def eval (ρ : Env) : Term → MetaM Term
         let y ← (body.subst0 p)
         eval ρ y
       | fv                 => return Term.app_pr A fv p
-  | Term.app_irrel A f x =>
-    match eval f with
-    | Term.lam_irrel _ body => eval (body.subst0 x)
-    | fv                    => Term.app_irrel A fv x
+  | Term.app_irrel A f x => do
+    let a ← eval ρ f
+      match a with
+      | Term.lam_irrel _ body =>
+        let b ← (body.subst0 x)
+        eval ρ b
+      | fv                    => return Term.app_irrel A fv x
 
   -- ── Σ / set / union elimination ──────────────────────────────────────────
-  | Term.let_pair k P e e' =>
-    match eval e with
-    | Term.pair l r => eval ((e'.subst0 r).subst0 l)
+  | Term.let_pair k P e e' => do
+    let a ← eval ρ e
+    match a with
+    | Term.pair l r =>
+      let b ← ((e'.subst0 r).subst0 l)
+      eval ρ b
     | ev            => Term.let_pair k P ev e'
   | Term.let_set k P e e' =>
     match eval e with
