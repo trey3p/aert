@@ -139,11 +139,18 @@ def Untyped.Term.toExpr (env : List Statement) (ctx : List Expr) : Term → Meta
   let l_expr ← l.toExpr env ctx
   let r_expr ← r.toExpr env ctx
   mkAppM ``Sum.casesOn #[d_expr, l_expr, r_expr]
-| Term.natrec _ _ e z s => do
+| Term.natrec _ C e z s => do
   let e_expr ← e.toExpr env ctx
   let z_expr ← z.toExpr env ctx
-  let s_expr ← s.toExpr env ctx
-  mkAppM ``Nat.rec #[z_expr, s_expr, e_expr]
+  let motive ← withLocalDeclD (← mkFreshUserName `n) (mkConst ``Nat) fun n_var => do
+    let body ← C.toExpr env (n_var :: ctx)
+    mkLambdaFVars #[n_var] body
+  let s_lam ← withLocalDeclD (← mkFreshUserName `n) (mkConst ``Nat) fun n_var => do
+    let ih_ty := mkApp motive n_var
+    withLocalDeclD (← mkFreshUserName `ih) ih_ty fun ih_var => do
+      let body ← s.toExpr env (ih_var :: n_var :: ctx)
+      mkLambdaFVars #[n_var, ih_var] body
+  mkAppOptM ``Nat.rec #[some motive, some z_expr, some s_lam, some e_expr]
 | Term.list A => do
   let A_expr ← A.toExpr env ctx
   mkAppM ``List #[A_expr]
@@ -157,21 +164,25 @@ def Untyped.Term.toExpr (env : List Statement) (ctx : List Expr) : Term → Meta
   let x_expr ← x.toExpr env ctx
   let xs_expr ← xs.toExpr env ctx
   mkAppM ``List.cons #[x_expr, xs_expr]
-| Term.listrec _ _ lst nil_case cons_case => do
+| Term.listrec _ C lst nil_case cons_case => do
   let lst_expr ← lst.toExpr env ctx
   let nil_expr ← nil_case.toExpr env ctx
   let lst_type ← inferType lst_expr
   let A_expr ← match lst_type with
     | .app (.const ``List _) A => pure A
     | _ => throwError "listrec: subject must have type List A, got {← ppExpr lst_type}"
-  let beta ← inferType nil_expr
-  -- Build cons function: fun (hd : A) (ih : β) => body
-  -- var 0 = ih, var 1 = hd in the cons case body
+  let listA := mkApp (mkConst ``List [Level.zero]) A_expr
+  let motive ← withLocalDeclD (← mkFreshUserName `ys) listA fun ys_var => do
+    let body ← C.toExpr env (ys_var :: ctx)
+    mkLambdaFVars #[ys_var] body
   let c_lam ← withLocalDeclD (← mkFreshUserName `hd) A_expr fun hd_var => do
-    withLocalDeclD (← mkFreshUserName `ih) beta fun ih_var => do
-      let body ← cons_case.toExpr env (ih_var :: hd_var :: ctx)
-      mkLambdaFVars #[hd_var, ih_var] body
-  mkAppM ``List.foldr #[c_lam, nil_expr, lst_expr]
+    withLocalDeclD (← mkFreshUserName `tl) listA fun tl_var => do
+      let ih_ty := mkApp motive tl_var
+      withLocalDeclD (← mkFreshUserName `ih) ih_ty fun ih_var => do
+        let body ← cons_case.toExpr env (ih_var :: tl_var :: hd_var :: ctx)
+        mkLambdaFVars #[hd_var, tl_var, ih_var] body
+  mkAppOptM ``List.rec
+    #[some A_expr, some motive, some nil_expr, some c_lam, some lst_expr]
 | Untyped.Term.const (Untyped.TermKind.definition defName) => do
   return mkConst defName
 | a => throwError m!"unhandled proof term {_root_.repr a}"

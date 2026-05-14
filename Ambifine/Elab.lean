@@ -211,22 +211,26 @@ partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → Com
     let ihName := ih.getId
     let .exprType T_term ← elabErtType env ctx T
       | throwErrorAt T m!"invalid type"
-    -- Motive is checked under the list binder (xs : list T)
+    -- The motive's bound variable has the user-given list type T;
+    -- the element type is extracted for hd.
+    let elem_term ← match T_term with
+      | Untyped.Term.list e => pure e
+      | _ => throwErrorAt T m!"listrec motive binder must have a list type"
     let .exprType K_term ← elabErtType env
-        ((xsName, Hyp.type (Untyped.Term.list T_term)) :: ctx) C
+        ((xsName, Hyp.type T_term) :: ctx) C
       | throwErrorAt C "expected type expression"
     let e_term ← elabErtTerm env ctx e
     let em_term ← elabErtTerm env ctx em
     -- cons case binders (innermost first):
-    --   var 0 = ih (type C[tl / motive_var])
-    --   var 1 = tl (type list T)
-    --   var 2 = hd (type T)
+    --   var 0 = ih  (type C[tl / motive_var])
+    --   var 1 = tl  (type list elem)
+    --   var 2 = hd  (type elem)
     -- Stored types are in just-below-binder context, matching Subst.lookupVar's
     -- automatic wk1 application as we descend.
     let c_term ← elabErtTerm env
         ((ihName, Hyp.type (K_term.lift 1 1)) ::
-         (tlName, Hyp.type (Untyped.Term.list T_term).wk1) ::
-         (hdName, Hyp.type T_term) :: ctx) c
+         (tlName, Hyp.type T_term.wk1) ::
+         (hdName, Hyp.type elem_term) :: ctx) c
     return Untyped.Term.listrec .type K_term e_term em_term c_term
   | stx => throwErrorAt stx "Unsupported ERT term: {stx}"
 

@@ -1,22 +1,33 @@
 import Ambifine.Untyped
 import Ambifine.Subst
-
+open Lean Meta
 /-!
   Call-by-value operational semantics for `Untyped.Term`.
 
-  Refinement types and propositions are inert: they reduce only inside
+  Refinement types: they reduce only inside
   their non-binding subterms (or not at all).  All real computation is the
-  usual β/ι reduction for STLC extended with the structural recursors for
+  usual β reduction for STLC extended with the structural recursors for
   ℕ and `List`.
 -/
 
 namespace Untyped
 
-partial def eval : Term → Term
+partial def eval (ρ : Env) : Term → MetaM Term
   -- ── Values: variables, embedded proofs, constants ────────────────────────
-  | .var v       => .var v
-  | .proof e ty  => .proof e ty
-  | .const c     => .const c
+  | .var v       => return .var v
+  | .proof e ty  => return .proof e ty
+  | .const c     => (
+      match c with
+      | TermKind.definition n =>
+        match ρ.find? (·.name == n) with
+        | some s =>  (
+          match s with
+          | Statement.defn n ty tm => return tm
+          | Statement.thm n ty pf => return .proof pf ty
+        )
+        | _ => throwError "Incorrect const typing"
+      | _ => return .const c
+    )
 
   -- ── Type formers (inert) ─────────────────────────────────────────────────
   | Term.pi A B        => Term.pi A B
@@ -27,14 +38,6 @@ partial def eval : Term → Term
   | Term.intersect A B => Term.intersect A B
   | Term.union A B     => Term.union A B
   | Term.list A        => Term.list A
-
-  -- ── Proposition formers (inert) ──────────────────────────────────────────
-  | Term.dand φ ψ     => Term.dand φ ψ
-  | Term.dimplies φ ψ => Term.dimplies φ ψ
-  | Term.or φ ψ       => Term.or φ ψ
-  | Term.forall_ A φ  => Term.forall_ A φ
-  | Term.exists_ A φ  => Term.exists_ A φ
-  | Term.eq A l r     => Term.eq A l r
 
   -- ── λ-abstractions are values; do not reduce under binders ───────────────
   | Term.lam A t       => Term.lam A t
