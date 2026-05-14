@@ -94,48 +94,68 @@ partial def eval (ρ : Env) : Term → MetaM Term
     let a ← eval ρ e
     match a with
     | Term.pair l r =>
-      let b ← ((e'.subst0 r).subst0 l)
-      eval ρ b
-    | ev            => Term.let_pair k P ev e'
-  | Term.let_set k P e e' =>
-    match eval e with
-    | Term.elem x p _ => eval ((e'.subst0 p).subst0 x)
-    | ev              => Term.let_set k P ev e'
-  | Term.let_repr k P e e' =>
-    match eval e with
-    | Term.repr l r => eval ((e'.subst0 r).subst0 l)
-    | ev            => Term.let_repr k P ev e'
+      let e'' ← (e'.subst0 r)
+      let e''' ← e''.subst0 l
+      eval ρ e'''
+    | ev            => return Term.let_pair k P ev e'
+  | Term.let_set k P e e' => do
+    let a ← eval ρ e
+    match a with
+    | Term.elem x p _ =>
+      let e'' ← (e'.subst0 p)
+      let e''' ← e''.subst0 x
+      eval ρ e'''
+    | ev              => return Term.let_set k P ev e'
+  | Term.let_repr k P e e' => do
+    let a ← eval ρ e
+    match a with
+    | Term.repr l r =>
+      let e'' ← e'.subst0 r
+      let e''' ← e''.subst0 l
+      eval ρ e'''
+    | ev            => return Term.let_repr k P ev e'
 
   -- ── Coproduct elimination ────────────────────────────────────────────────
-  | Term.case k K d l r =>
-    match eval d with
-    | Term.inj 0 _ x => eval (l.subst0 x)
-    | Term.inj 1 _ x => eval (r.subst0 x)
-    | dv             => Term.case k K dv l r
+  | Term.case k K d l r => do
+    let a ← eval ρ d
+    match a with
+    | Term.inj 0 _ x =>
+      let l' ← l.subst0 x
+      eval ρ l'
+    | Term.inj 1 _ x =>
+      let r' ← r.subst0 x
+      eval ρ r'
+    | dv             => return Term.case k K dv l r
 
   -- ── ℕ recursion: zero ↦ z;  succ n ↦ s[natrec(n) / 0][n / 0] ─────────────
-  | Term.natrec k K e z s =>
-    match eval e with
-    | Term.zero => eval z
+  | Term.natrec k K e z s => do
+    let e' ← eval ρ e
+    match e' with
+    | Term.zero => eval ρ z
     | Term.app _ Term.succ n =>
       let ih := Term.natrec k K n z s
-      eval ((s.subst0 ih).subst0 n)
-    | ev => Term.natrec k K ev z s
+      let s' ← s.subst0 ih
+      let s'' ← s'.subst0 n
+      eval ρ s'
+    | ev => return Term.natrec k K ev z s
 
   -- ── List recursion ───────────────────────────────────────────────────────
   -- em A ↦ nil_case
   -- cons x xs ↦ cons_case[ih/0][xs/0][x/0]
   --   where cons_case has 3 binders, var 0 = ih, var 1 = tail, var 2 = head
-  | Term.listrec k K e nil_case cons_case =>
-    match eval e with
-    | Term.em _ => eval nil_case
+  | Term.listrec k K e nil_case cons_case => do
+    let e' ← eval ρ e
+    match e' with
+    | Term.em _ => eval ρ nil_case
     | Term.cons x xs =>
       let ih := Term.listrec k K xs nil_case cons_case
-      eval (((cons_case.subst0 ih).subst0 xs).subst0 x)
-    | ev => Term.listrec k K ev nil_case cons_case
+      let cons' ← cons_case.subst0 ih
+      let cons'' ← cons'.subst0 x
+      eval ρ cons''
+    | ev => return Term.listrec k K ev nil_case cons_case
 
   -- ── Anything else (ir / beta_zero / beta_succ / let_bin_beta / …) ────────
   -- These are propositional witnesses or stuck open terms; return as-is.
-  | t => t
+  | t => return t
 
 end Untyped
