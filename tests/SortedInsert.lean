@@ -34,7 +34,7 @@ def leDec (a b : Nat) : (a ≤ b) ∨ (b < a) :=
 def insert :
     (x : ℕ) →
     (l : {l : list ℕ | sorted l}) →
-    {l' : list ℕ | sorted l' ∧ List.length l' =(ℕ) List.length l + 1} :=
+    {l' : list ℕ | sorted l' ∧ List.length l' = List.length l + 1} :=
   λ x : ℕ .
   λ l : {l : list ℕ | sorted l} .
     let {xs, hs} : {l : list ℕ | sorted l} = l in
@@ -42,11 +42,11 @@ def insert :
     --   nil           ↦ [x]
     --   hd :: tl, ih  ↦ case x ≤ hd of  inl _ ↦ x :: hd :: tl
     --                                    inr _ ↦ hd :: ih
-    let result : list ℕ :=
-      listrec [(_ : list ℕ) ↦ list ℕ] xs
+    λ result : list ℕ .
+      listrec [(_r : list ℕ) ↦ list ℕ] xs
         | x :: (nil : list ℕ)
         | hd, tl, ih ↦
-            cases [_ : (x ≤ hd) + (hd < x) ↦ list ℕ] (leDec x hd)
+            cases [_q : (x ≤ hd) + (hd < x) ↦ list ℕ] (leDec x hd)
               | inl (_ : (x ≤ hd)) ↦ x :: hd :: tl
               | inr (_ : (hd < x)) ↦ hd :: ih
     in
