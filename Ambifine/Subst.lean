@@ -42,10 +42,47 @@ def Term.lift (cutoff shift : Nat) : Term → Term
 def Term.wk1 (t : Term) : Term := t.lift 0 1
 def Term.wkn (n : Nat) (t : Term) : Term := t.lift 0 n
 
+-- Mirror of `Term.lift` that lowers free variables: bvars with index ≥ cutoff
+-- are shifted down by `shift`.  Used to bring a body's type back into the
+-- outer Γ when `let_set` returns it (the body was inferred under 2 extra
+-- destructure binders).  Assumes none of the eliminated indices are referenced
+-- — i.e., the term is well-formed in the smaller context.
+def Term.liftDown (cutoff shift : Nat) : Term → Term
+  | .proof p Ty        => .proof (p.lowerLooseBVars cutoff shift)
+                                  (Ty.lowerLooseBVars cutoff shift)
+  | .expr e            => .expr (e.lowerLooseBVars cutoff shift)
+  | .var v             => .var (if v < cutoff then v else v - shift)
+  | .const c           => .const c
+  | .unary k t         => .unary k (t.liftDown cutoff shift)
+  | .bin k l r         => .bin k (l.liftDown cutoff shift) (r.liftDown cutoff shift)
+  | .abs k A t         => .abs k (A.liftDown cutoff shift) (t.liftDown (cutoff + 1) shift)
+  | .pabs k A t        => .pabs k (A.lowerLooseBVars cutoff shift)
+                                   (t.liftDown (cutoff + 1) shift)
+  | .tri k A l r       => .tri k (A.liftDown cutoff shift) (l.liftDown cutoff shift)
+                                  (r.liftDown cutoff shift)
+  | .ir k x y P        => .ir k (x.liftDown cutoff shift) (y.liftDown cutoff shift)
+                                  (P.liftDown (cutoff + 1) shift)
+  | .cases k K d l r   => .cases k (K.liftDown cutoff shift) (d.liftDown cutoff shift)
+                                    (l.liftDown (cutoff + 1) shift)
+                                    (r.liftDown (cutoff + 1) shift)
+  | .let_bin k P e e'  => .let_bin k (P.liftDown cutoff shift) (e.liftDown cutoff shift)
+                                      (e'.liftDown (cutoff + 2) shift)
+  | .let_bin_beta k P l r e' =>
+      .let_bin_beta k (P.liftDown cutoff shift) (l.liftDown cutoff shift)
+                      (r.liftDown cutoff shift) (e'.liftDown (cutoff + 2) shift)
+  | .nr k K e z s      => .nr k (K.liftDown (cutoff + 1) shift) (e.liftDown cutoff shift)
+                                 (z.liftDown cutoff shift) (s.liftDown (cutoff + 2) shift)
+  | .nz k K z s        => .nz k (K.liftDown (cutoff + 1) shift) (z.liftDown cutoff shift)
+                                  (s.liftDown (cutoff + 2) shift)
+  | .lr k K e n c      => .lr k (K.liftDown (cutoff + 1) shift) (e.liftDown cutoff shift)
+                                  (n.liftDown cutoff shift) (c.liftDown (cutoff + 3) shift)
+
 def _root_.Hyp.wk1 : Hyp → Hyp
 | .gst ty => .gst ty.wk1
 | .type ty => .type ty.wk1
 | .prop ty => .prop (ty.liftLooseBVars 0 1)
+| .destructVal ty src => .destructVal ty.wk1 src.wk1
+| .destructProp ty src => .destructProp (ty.liftLooseBVars 0 1) src.wk1
 
 -- Computable analogue of HasVar: walk the context, applying wk1 at each step
 -- so the returned type is valid in the full context (not just the tail).

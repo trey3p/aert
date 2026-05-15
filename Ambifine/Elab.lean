@@ -152,7 +152,8 @@ partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → Com
     let aName := a.getId
     let bName := b.getId
     let e_term ← elabErtTerm env
-      ((bName, Hyp.prop b_expr) :: (aName, Hyp.type a_term) :: ctx) e
+      ((bName, Hyp.destructProp b_expr x_term) ::
+       (aName, Hyp.destructVal a_term x_term) :: ctx) e
     return Untyped.Term.let_set .type A_term x_term e_term
   | `(ertTerm| λ ($x : $P:term) . $t) => do
     let .exprProp P_expr ← elabErtProp env ctx P | throwErrorAt P "expected prop expression"

@@ -334,6 +334,18 @@ def withCtxToLocalCtx {α : Type} (env : List Statement) (ctx : NamedCtx) (acc :
       | .type ty =>
         withLocalDeclD name (← ty.toExpr env acc') fun x =>
           k (x :: acc')
+      -- Destructure entries: bind as `let`s pointing at the projections, so
+      -- the proof env retains the link to the source.
+      | .destructVal ty src =>
+        let src_expr ← src.toExpr env acc'
+        let val := Lean.mkProj ``Subtype 0 src_expr
+        withLetDecl name (← ty.toExpr env acc') val fun x =>
+          k (x :: acc')
+      | .destructProp ty src =>
+        let src_expr ← src.toExpr env acc'
+        let val := Lean.mkProj ``Subtype 1 src_expr
+        withLetDecl name (ty.instantiate acc'.toArray) val fun x =>
+          k (x :: acc')
 
 /-- Variant that does not require names to be given.  -/
 def withCtxToLocalCtx' {α : Type} (env : List Statement) (ctx : Ctx) (acc : List Expr)
@@ -349,4 +361,14 @@ def withCtxToLocalCtx' {α : Type} (env : List Statement) (ctx : Ctx) (acc : Lis
       | .gst ty
       | .type ty =>
         withLocalDeclD (← mkFreshUserName `x) (← ty.toExpr env acc') fun x =>
+          k (x :: acc')
+      | .destructVal ty src =>
+        let src_expr ← src.toExpr env acc'
+        let val := Lean.mkProj ``Subtype 0 src_expr
+        withLetDecl (← mkFreshUserName `x) (← ty.toExpr env acc') val fun x =>
+          k (x :: acc')
+      | .destructProp ty src =>
+        let src_expr ← src.toExpr env acc'
+        let val := Lean.mkProj ``Subtype 1 src_expr
+        withLetDecl (← mkFreshUserName `x) (ty.instantiate acc'.toArray) val fun x =>
           k (x :: acc')

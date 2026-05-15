@@ -49,8 +49,8 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
   -- Variables: ghost bindings are not directly usable as values
   | Term.var n =>
     match lookupVar Γ n with
-    | some (.type ty) => return .exprType ty
-    | some (.prop ty) => return .exprProp (Hyp.propInScope ty fvars)
+    | some (.type ty) | some (.destructVal ty _) => return .exprType ty
+    | some (.prop ty) | some (.destructProp ty _) => return .exprProp (Hyp.propInScope ty fvars)
     | _ => throwError m!"var: variable {n} not found or is ghost in context"
 
   -- ── Constants ─────────────────────────────────────────────────────────────
@@ -357,13 +357,25 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
       | .exprType P' =>
         if P' != P then throwError m!"let_set: scrutinee type {repr P'} does not match annotation {repr P}"
         let A_expr ← A.toExpr ρ fvars
-        withLocalDeclD (← mkFreshUserName `x) A_expr fun x_fvar => do
-          -- predicate's bvars instantiated by (x_fvar + outer fvars) gives the prop in scope
+        let e_expr ← e.toExpr ρ fvars
+        let val := Lean.mkProj ``Subtype 0 e_expr
+        let pval := Lean.mkProj ``Subtype 1 e_expr
+        -- Use `withLetDecl` so the destructured names are def-equal to the
+        -- projections of the source — the proof env now satisfies
+        -- `rfl : x_fvar = e.val` etc.
+        withLetDecl (← mkFreshUserName `x) A_expr val fun x_fvar => do
           let φ_x := P_expr.instantiate (x_fvar :: fvars).toArray
-          withLocalDeclD (← mkFreshUserName `h) φ_x fun h_fvar => do
-            match ← inferType (Hyp.prop P_expr :: Hyp.type A :: Γ)
+          withLetDecl (← mkFreshUserName `h) φ_x pval fun h_fvar => do
+            match ← inferType (Hyp.destructProp P_expr e :: Hyp.destructVal A e :: Γ)
                                ρ (h_fvar :: x_fvar :: fvars) e' with
-            | .exprType T_ext => return .exprType T_ext
+            -- Body's type lives in the augmented Γ.  Lift its bvars down by 2
+            -- so it's valid in the outer Γ (assumes the body's type doesn't
+            -- reference the destructured names).
+            | .exprType T_ext =>
+              IO.eprintln s!"let_set: T_ext before liftDown = {repr T_ext}"
+              let lifted := T_ext.liftDown 0 2
+              IO.eprintln s!"let_set: T_ext after liftDown = {repr lifted}"
+              return .exprType lifted
             | a => throwError m!"let_set: body {repr e'} must have a type, got {repr a}"
       | a => throwError m!"let_set: scrutinee {repr e} must have a type, got {repr a}"
     | _ => throwError m!"let_set: annotation must be a set type with a Lean prop predicate"
