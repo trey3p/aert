@@ -1,4 +1,3 @@
-import Ambifine.Basic
 import Ambifine.Check
 import Ambifine.Context
 import Ambifine.Elab
