@@ -152,7 +152,9 @@ partial def elabErtTerm (env : List Statement) (ctx : NamedCtx) : Syntax → Com
     let aName := a.getId
     let bName := b.getId
     let e_term ← elabErtTerm env
-      ((bName, Hyp.destructProp b_expr x_term) ::
+      -- `destructProp` is added AFTER `destructVal` (deeper into ctx), so its
+      -- stored `src` needs one extra `wk1` to still point to the same scrutinee.
+      ((bName, Hyp.destructProp b_expr x_term.wk1) ::
        (aName, Hyp.destructVal a_term x_term) :: ctx) e
     return Untyped.Term.let_set .type A_term x_term e_term
   | `(ertTerm| λ ($x : $P:term) . $t) => do

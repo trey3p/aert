@@ -371,11 +371,7 @@ def inferType (Γ : Ctx) (ρ : Env) (fvars : List Expr) (e : Term) : MetaM Annot
             -- Body's type lives in the augmented Γ.  Lift its bvars down by 2
             -- so it's valid in the outer Γ (assumes the body's type doesn't
             -- reference the destructured names).
-            | .exprType T_ext =>
-              IO.eprintln s!"let_set: T_ext before liftDown = {repr T_ext}"
-              let lifted := T_ext.liftDown 0 2
-              IO.eprintln s!"let_set: T_ext after liftDown = {repr lifted}"
-              return .exprType lifted
+            | .exprType T_ext => return .exprType (T_ext.liftDown 0 2)
             | a => throwError m!"let_set: body {repr e'} must have a type, got {repr a}"
       | a => throwError m!"let_set: scrutinee {repr e} must have a type, got {repr a}"
     | _ => throwError m!"let_set: annotation must be a set type with a Lean prop predicate"

@@ -42,15 +42,34 @@ def Term.lift (cutoff shift : Nat) : Term → Term
 def Term.wk1 (t : Term) : Term := t.lift 0 1
 def Term.wkn (n : Nat) (t : Term) : Term := t.lift 0 n
 
+-- Custom Expr lowerer: Lean's `lowerLooseBVars e s d` returns `e` unchanged
+-- when `s < d` (defensive guard).  We need to shift bvars `≥ cutoff` down
+-- regardless, asserting the caller has verified no bvars in `[cutoff, cutoff+shift)`
+-- are referenced.
+partial def _root_.Lean.Expr.lowerLooseBVarsUnsafe (e : Lean.Expr) (cutoff shift : Nat) : Lean.Expr :=
+  match e with
+  | .bvar n => if n < cutoff then .bvar n else .bvar (n - shift)
+  | .app f a => .app (f.lowerLooseBVarsUnsafe cutoff shift) (a.lowerLooseBVarsUnsafe cutoff shift)
+  | .lam n t b bi =>
+      .lam n (t.lowerLooseBVarsUnsafe cutoff shift) (b.lowerLooseBVarsUnsafe (cutoff + 1) shift) bi
+  | .forallE n t b bi =>
+      .forallE n (t.lowerLooseBVarsUnsafe cutoff shift) (b.lowerLooseBVarsUnsafe (cutoff + 1) shift) bi
+  | .letE n t v b nd =>
+      .letE n (t.lowerLooseBVarsUnsafe cutoff shift) (v.lowerLooseBVarsUnsafe cutoff shift)
+              (b.lowerLooseBVarsUnsafe (cutoff + 1) shift) nd
+  | .mdata m e' => .mdata m (e'.lowerLooseBVarsUnsafe cutoff shift)
+  | .proj n i e' => .proj n i (e'.lowerLooseBVarsUnsafe cutoff shift)
+  | e => e  -- const, fvar, mvar, sort, lit
+
 -- Mirror of `Term.lift` that lowers free variables: bvars with index ≥ cutoff
 -- are shifted down by `shift`.  Used to bring a body's type back into the
 -- outer Γ when `let_set` returns it (the body was inferred under 2 extra
 -- destructure binders).  Assumes none of the eliminated indices are referenced
 -- — i.e., the term is well-formed in the smaller context.
 def Term.liftDown (cutoff shift : Nat) : Term → Term
-  | .proof p Ty        => .proof (p.lowerLooseBVars cutoff shift)
-                                  (Ty.lowerLooseBVars cutoff shift)
-  | .expr e            => .expr (e.lowerLooseBVars cutoff shift)
+  | .proof p Ty        => .proof (p.lowerLooseBVarsUnsafe cutoff shift)
+                                  (Ty.lowerLooseBVarsUnsafe cutoff shift)
+  | .expr e            => .expr (e.lowerLooseBVarsUnsafe cutoff shift)
   | .var v             => .var (if v < cutoff then v else v - shift)
   | .const c           => .const c
   | .unary k t         => .unary k (t.liftDown cutoff shift)
