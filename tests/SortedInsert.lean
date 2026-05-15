@@ -27,6 +27,9 @@ def leDec (a b : Nat) : (a ≤ b) ∨ (b < a) :=
 
 #lang ERT
 
+def le : (n : ℕ) → (m : ℕ) → ℕ :=
+  natrec [x ↦ ℕ] n | 0 | ‖ succ i ‖, ih ↦ 1
+
 -- `insert x l`: insert `x` into a sorted list, preserving sortedness and
 -- growing the length by one.  Refinements use `List.length` directly
 -- (no ambifine-side `length` needed — it's the same function the listrec
@@ -68,5 +71,5 @@ def insert :
           | nil       => rfl
           | cons _ _ ih_xs =>
             unfold leDec; split <;> simp [List.length, ih_xs] <;> omega
-      : sorted result ∧ List.length result =(ℕ) List.length xs + 1
-    } : {l' : list ℕ | sorted l' ∧ List.length l' =(ℕ) List.length l + 1}
+      : sorted result ∧ List.length result = List.length xs + 1
+    } : {l' : list ℕ | sorted l' ∧ List.length l' = List.length l + 1}

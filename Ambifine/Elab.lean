@@ -277,6 +277,15 @@ def elabErtStatement (env : List Statement) : Syntax → CommandElabM Statement
     let .exprProp prop ← elabErtProp env [] prop | throwErrorAt prop "expected prop expression"
     let bodyExpr ← liftTermElabM $ Term.elabTermAndSynthesize body prop
     if ← liftTermElabM $ isDefEq prop (← liftTermElabM $ Meta.inferType bodyExpr) then
+      liftTermElabM $ addAndCompile (logCompileErrors := false) <| .defnDecl {
+        name        := name.getId
+        levelParams := []
+        type        := prop
+        value       := bodyExpr
+        hints       := .regular 0
+        safety      := .safe
+      }
+      liftTermElabM $ enableRealizationsForConst name.getId
       return .thm name.getId prop bodyExpr
     else
       throwErrorAt name "invalid proof"

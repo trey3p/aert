@@ -1,4 +1,5 @@
 import Ambifine.Elab
+import Ambifine.Tactics
 
 #lang ERT
 
@@ -15,6 +16,14 @@ def plus : (m : ℕ) → (n : ℕ) → ℕ :=
       | n
       | ‖succ p‖, ih ↦ ((succ : (n : ℕ) → ℕ) ih)
 
+def plus_eq : ∀ a b : Nat, plus a b = a + b := by
+  intro a b
+  induction a with
+  | zero => show b = 0 + b; omega
+  | «succ» a ih =>
+    show plus a b + 1 = a + 1 + b
+    rw [ih]; omega
+
 -- Multiplication on ℕ, by natrec on the first argument.
 def mult : (m : ℕ) → (n : ℕ) → ℕ :=
   λ m : ℕ . λ n : ℕ .
@@ -22,6 +31,14 @@ def mult : (m : ℕ) → (n : ℕ) → ℕ :=
       | 0
       | ‖succ p‖, ih ↦
           (((plus : (a : ℕ) → (b : ℕ) → ℕ) n : (b : ℕ) → ℕ) ih)
+
+def mult_eq : ∀ a b : Nat, mult a b = a * b := by
+  intro a b
+  induction a with
+  | zero => show (0 : Nat) = 0 * b; omega
+  | «succ» a ih =>
+    show plus b (mult a b) = (a + 1) * b
+    rw [plus_eq, ih, Nat.succ_mul]; omega
 
 -- Safe indexed access.  We dispatch on the index `idx` via natrec with a
 -- dependent motive.  The motive `n ↦ (ys : list ℕ) → {x : ℕ | n < length ys} → ℕ`
@@ -93,21 +110,6 @@ def flatIndex : (rows : {r : ℕ | r > 0})
          (((mult : (a : ℕ) → (b : ℕ) → ℕ) iv : (b : ℕ) → ℕ) cv)
          : (b : ℕ) → ℕ) jv),
       by
-        -- Bridge ambifine `plus`/`mult` to Lean's `+`/`*`, then nat-arithmetic.
-        have plus_eq : ∀ a b : Nat, plus a b = a + b := by
-          intro a b
-          induction a with
-          | zero => show b = 0 + b; omega
-          | «succ» a ih =>
-            show plus a b + 1 = a + 1 + b
-            rw [ih]; omega
-        have mult_eq : ∀ a b : Nat, mult a b = a * b := by
-          intro a b
-          induction a with
-          | zero => show (0 : Nat) = 0 * b; omega
-          | «succ» a ih =>
-            show plus b (mult a b) = (a + 1) * b
-            rw [plus_eq, ih, Nat.succ_mul]; omega
         rw [plus_eq, mult_eq, mult_eq]
         -- The let_set destructure projects rv := rows.val, cv := cols.val.
         -- These are the same expression; bridge so omega sees it.
@@ -120,11 +122,43 @@ def flatIndex : (rows : {r : ℕ | r > 0})
       : plus (mult iv cv) jv < mult rv cv}
       : {k : ℕ | k < mult rows cols}
 
--- The payoff.  `flatIndex` produces a value with refinement `< mult rows cols`.
+-- Same as `flatIndex`, but the nat-arithmetic obligation is discharged using
+-- the `decidable_reduce` tactic.  After bridging `plus`/`mult` to `+`/`*` we
+-- bundle the arithmetic into a conjunction: `jv < cv ∧ iv * cv + cv ≤ rv * cv`.
+-- `decidable_reduce` splits it, closes the linear conjunct `jv < cv` via
+-- `grind` (from `pj`), and hands back exactly the nonlinear conjunct
+-- `iv * cv + cv ≤ rv * cv` as a subgoal for the user to discharge.
+def flatIndex_decidable_reduce : (rows : {r : ℕ | r > 0})
+                  → (cols : {c : ℕ | c > 0})
+                  → (i : {x : ℕ | x < rows})
+                  → (j : {x : ℕ | x < cols})
+                  → {k : ℕ | k < mult rows cols} :=
+  λ rows : {r : ℕ | r > 0} .
+  λ cols : {c : ℕ | c > 0} .
+  λ i : {x : ℕ | x < rows} .
+  λ j : {x : ℕ | x < cols} .
+    let {iv, pi} : {x : ℕ | x < rows}  = i in
+    let {jv, pj} : {x : ℕ | x < cols}  = j in
+    let {rv, pr} : {r : ℕ | r > 0}     = rows in
+    let {cv, pc} : {c : ℕ | c > 0}     = cols in
+    {(((plus : (a : ℕ) → (b : ℕ) → ℕ)
+         (((mult : (a : ℕ) → (b : ℕ) → ℕ) iv : (b : ℕ) → ℕ) cv)
+         : (b : ℕ) → ℕ) jv),
+      by
+        rw [plus_eq, mult_eq, mult_eq]
+        suffices both : jv < cv ∧ iv * cv + cv ≤ rv * cv by grind
+        -- decidable_reduce closes `jv < cv` and leaves the nonlinear conjunct.
+        decidable_reduce
+        calc iv * cv + cv
+            = (iv + 1) * cv := (Nat.succ_mul iv cv).symm
+          _ ≤ rv * cv       :=
+              Nat.mul_le_mul_right cv (by show iv + 1 ≤ rows.val; omega)
+      : plus (mult iv cv) jv < mult rv cv}
+      : {k : ℕ | k < mult rows cols}
+
+-- `flatIndex` produces a value with refinement `< mult rows cols`.
 -- `arr` carries refinement `length arr = mult rows cols`.  Together these say
 -- `flatIndex rows cols i j < length arr` — exactly `get`'s precondition.
--- No new arithmetic proof is needed at the call site; the refinements
--- compose mechanically.
 def get2D : (rows : {r : ℕ | r > 0})
           → (cols : {c : ℕ | c > 0})
           → (arr : {a : list ℕ | length a = mult rows cols})

@@ -4,4 +4,5 @@ import Ambifine.Elab
 import Ambifine.Infer
 import Ambifine.Subst
 import Ambifine.Surface
+import Ambifine.Tactics
 import Ambifine.Untyped
