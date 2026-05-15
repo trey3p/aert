@@ -22,8 +22,8 @@ partial def eval (ρ : Env) : Term → MetaM Term
         match ρ.find? (·.name == n) with
         | some s =>  (
           match s with
-          | Statement.defn n ty tm => return tm
-          | Statement.thm n ty pf => return .proof pf ty
+          | Statement.defn _n _ty tm => return tm
+          | Statement.thm _n ty pf => return .proof pf ty
         )
         | _ => throwError "Incorrect const typing"
       | _ => return .const c
@@ -135,7 +135,7 @@ partial def eval (ρ : Env) : Term → MetaM Term
     | Term.app _ Term.succ n =>
       let ih := Term.natrec k K n z s
       let s' ← s.subst0 ih
-      let s'' ← s'.subst0 n
+      let _ ← s'.subst0 n
       eval ρ s'
     | ev => return Term.natrec k K ev z s
 

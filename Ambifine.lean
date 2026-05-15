@@ -1,8 +1,11 @@
 import Ambifine.Basic
+import Ambifine.Check
 import Ambifine.Context
 import Ambifine.Elab
+import Ambifine.Eval
 import Ambifine.Infer
 import Ambifine.Subst
 import Ambifine.Surface
 import Ambifine.Tactics
 import Ambifine.Untyped
+import Ambifine.UntypedToExpr
